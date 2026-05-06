@@ -181,10 +181,13 @@ function formatTime(sec) {
 }
 
 onMounted(() => {
-  const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }
+  const updateClock = () => {
+    currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })
+  }
   updateClock()
   clockInterval = setInterval(updateClock, 1000)
-
+  
+  // Firebase 同步已經在 store 中處理，不需要手動監聽
 })
 
 onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
