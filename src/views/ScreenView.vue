@@ -158,7 +158,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useConferenceStore } from '../stores/conference'
-import { listenStateUpdate } from '../utils/channel'
 
 const store = useConferenceStore()
 const currentTime = ref('')
@@ -186,7 +185,6 @@ onMounted(() => {
   updateClock()
   clockInterval = setInterval(updateClock, 1000)
 
-  listenStateUpdate((payload) => { store.$patch(payload) })
 })
 
 onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
