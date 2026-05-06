@@ -19,7 +19,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../main'
+import { auth } from '../firebase'
 
 const router = useRouter()
 const email = ref('')

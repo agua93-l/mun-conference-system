@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import ChairView from '../views/ChairView.vue'
 import ScreenView from '../views/ScreenView.vue'
 import LoginView from '../views/LoginView.vue'
-import { auth } from '../main'
+import { auth } from '../firebase'
 
 const routes = [
   { path: '/', name: 'Chair', component: ChairView, meta: { requiresAuth: true } },
@@ -12,7 +12,7 @@ const routes = [
 
 const router = createRouter({ history: createWebHistory(), routes })
 
-// 🔒 路由守衛：未登入跳轉登入頁，已登入跳轉控制台
+// 🔒 路由守衛
 router.beforeEach(async (to, from) => {
   if (!auth.currentUser && !auth._currentUserInitialized) {
     await new Promise(resolve => auth.onAuthStateChanged(resolve))

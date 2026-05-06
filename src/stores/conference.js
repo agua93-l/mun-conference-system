@@ -1,11 +1,8 @@
-// src/stores/conference.js
+// src/stores/conference.js (開頭部分)
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
-import { getDatabase, ref as dbRef, set, onValue } from 'firebase/database'
-import { auth } from '../main'
-
-const db = getDatabase()
-const stateRef = dbRef(db, 'mun_state')
+import { db, auth } from '../firebase' 
+import { ref as dbRef, set, onValue } from 'firebase/database'
 
 export const useConferenceStore = defineStore('conference', () => {
   // === State ===
