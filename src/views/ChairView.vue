@@ -19,7 +19,6 @@
     </header>
 
     <div class="grid-layout">
-      <!-- 左側：名單與控制 -->
       <div class="column left">
         <div class="card">
           <h3>🎤 常設發言人名單</h3>
@@ -94,7 +93,6 @@
         </div>
       </div>
 
-      <!-- 右側：動議與文件 -->
       <div class="column right">
         <div class="card">
           <h3>📜 動議佇列</h3>
@@ -195,8 +193,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { signOut } from 'firebase/auth'
-import { auth } from '../main'
 import { useConferenceStore } from '../stores/conference'
 
 const router = useRouter()
@@ -224,7 +220,12 @@ function formatTime(sec) {
 }
 
 function handleLogout() {
-  signOut(auth).then(() => router.push('/login'))
+  const { auth, authMethods } = window.firebase
+  authMethods.signOut(auth).then(() => {
+    router.push('/login')
+  }).catch(err => {
+    console.error('登出失敗:', err)
+  })
 }
 
 onMounted(() => {
