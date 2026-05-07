@@ -2,66 +2,66 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-// 🔒 安全延遲初始化 Firebase
-let isFirebaseReady = false
-let stateRef = null
-let _set = null
-let _onValue = null
-let _dbRef = null
+//  安全封裝 Firebase 方法（避開 Vite 壓縮與 CDN 載入延遲）
+let _dbRef = null, _set = null, _onValue = null, _stateRef = null
+let _isListening = false
 
-const initFirebase = () => {
-  if (isFirebaseReady || !window.firebase) return
-  isFirebaseReady = true
-  const { db, dbMethods } = window.firebase
-  _dbRef = dbMethods.ref
-  _set = dbMethods.set
-  _onValue = dbMethods.onValue
-  stateRef = _dbRef(db, 'mun_state')
-  startListening()
+const getFB = () => window.firebase
+const ensureFB = () => {
+  if (_dbRef) return true
+  const fb = getFB()
+  if (!fb || !fb.db || !fb.dbMethods) return false
+  _dbRef = fb.dbMethods.ref
+  _set = fb.dbMethods.set
+  _onValue = fb.dbMethods.onValue
+  _stateRef = _dbRef(fb.db, 'mun_state')
+  return true
 }
 
-// 嘗試立即初始化，若失敗則延遲 50ms 重試
-if (window.firebase) {
-  initFirebase()
-} else {
-  setTimeout(initFirebase, 50)
+const safeSync = (payload) => {
+  if (!ensureFB() || !_set) return
+  _set(_stateRef, payload).catch(() => {})
 }
 
-const startListening = () => {
-  if (!stateRef || !_onValue) return
-  _onValue(stateRef, (snapshot) => {
-    if (!snapshot.exists()) return
-    const d = snapshot.val()
-    meetingPhase.value = d.meetingPhase || '正式辯論'
-    screenMode.value = d.screenMode || 'default'
-    currentSection.value = d.currentSection || '議程 1'
+const startListen = () => {
+  if (_isListening || !ensureFB() || !_onValue) return
+  _isListening = true
+  _onValue(_stateRef, (snap) => {
+    if (!snap.exists()) return
+    const d = snap.val()
+    meetingPhase.value = d.meetingPhase ?? '正式辯論'
+    screenMode.value = d.screenMode ?? 'default'
+    currentSection.value = d.currentSection ?? '議程 1'
     Object.assign(rollCallStatus, d.rollCallStatus || {})
     isRollCallActive.value = !!d.isRollCallActive
     rollCallFinished.value = !!d.rollCallFinished
     Object.assign(rollCallThresholds, d.rollCallThresholds || {})
-    generalTimeLimit.value = d.generalTimeLimit || 60
+    generalTimeLimit.value = d.generalTimeLimit ?? 60
     generalList.value = d.generalList || []
     currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
-    generalSpeakerTimer.value = d.generalSpeakerTimer || 0
+    generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
     isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
     motionQueue.value = d.motionQueue || []
     currentVotingMotion.value = d.currentVotingMotion || null
     Object.assign(stats, d.stats || {})
     documents.value = d.documents || []
-    p5Timer.value = d.p5Timer || 0
-    caucusTotalTimer.value = d.caucusTotalTimer || 0
+    p5Timer.value = d.p5Timer ?? 0
+    caucusTotalTimer.value = d.caucusTotalTimer ?? 0
     modCaucusTopic.value = d.modCaucusTopic || ''
-    modCaucusTotalTimer.value = d.modCaucusTotalTimer || 0
-    modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer || 0
-    modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime || 0
+    modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
+    modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
+    modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
     modCaucusList.value = d.modCaucusList || []
     currentModSpeaker.value = d.currentModSpeaker || ''
     isModCaucusRunning.value = !!d.isModCaucusRunning
   })
 }
 
+// 延遲 100ms 確保 CDN 完全載入
+if (typeof window !== 'undefined') setTimeout(startListen, 100)
+
 export const useConferenceStore = defineStore('conference', () => {
-  // === State ===
+  // ✅ 全量安全預設值（絕不允許 undefined 進入 Vue 模板）
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -105,8 +105,7 @@ export const useConferenceStore = defineStore('conference', () => {
 
   // === Actions ===
   function sync() {
-    if (!isFirebaseReady || !_set || !stateRef) return
-    _set(stateRef, {
+    safeSync({
       meetingPhase: meetingPhase.value, screenMode: screenMode.value, currentSection: currentSection.value,
       rollCallStatus: JSON.parse(JSON.stringify(rollCallStatus)), isRollCallActive: isRollCallActive.value,
       rollCallFinished: rollCallFinished.value, rollCallThresholds: JSON.parse(JSON.stringify(rollCallThresholds)),
@@ -120,7 +119,7 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value
-    }).catch(err => console.warn('Sync skipped:', err))
+    })
   }
 
   function clearAllTimers() {
@@ -191,8 +190,8 @@ export const useConferenceStore = defineStore('conference', () => {
   }
   function submitMotion(type, country, details) {
     if (!type || !country) return
-    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
-    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('️ 僅P5可提閉門')
+    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('️ 僅理事國可動議')
+    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('⚠️ 僅P5可提閉門')
     if (type === '有主持核心磋商') {
       const t = (details.totalTime || 10) * 60, s = details.speakTime || 60
       if (t % s !== 0) return alert('⚠️ 發言時長須整除總時長')
