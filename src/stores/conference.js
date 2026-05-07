@@ -2,14 +2,14 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-//  安全封裝 Firebase 方法（避開 Vite 壓縮與 CDN 載入延遲）
+// 🔒 Firebase 安全封裝與延遲初始化
 let _dbRef = null, _set = null, _onValue = null, _stateRef = null
 let _isListening = false
+let _initRetry = null
 
-const getFB = () => window.firebase
 const ensureFB = () => {
   if (_dbRef) return true
-  const fb = getFB()
+  const fb = window.firebase
   if (!fb || !fb.db || !fb.dbMethods) return false
   _dbRef = fb.dbMethods.ref
   _set = fb.dbMethods.set
@@ -18,14 +18,11 @@ const ensureFB = () => {
   return true
 }
 
-const safeSync = (payload) => {
-  if (!ensureFB() || !_set) return
-  _set(_stateRef, payload).catch(() => {})
-}
-
 const startListen = () => {
-  if (_isListening || !ensureFB() || !_onValue) return
+  if (_isListening || !ensureFB()) return
   _isListening = true
+  if (_initRetry) clearInterval(_initRetry)
+  
   _onValue(_stateRef, (snap) => {
     if (!snap.exists()) return
     const d = snap.val()
@@ -57,11 +54,12 @@ const startListen = () => {
   })
 }
 
-// 延遲 100ms 確保 CDN 完全載入
-if (typeof window !== 'undefined') setTimeout(startListen, 100)
+// 啟動重試機制，直到 Firebase CDN 完全載入
+_initRetry = setInterval(() => {
+  if (ensureFB()) startListen()
+}, 200)
 
 export const useConferenceStore = defineStore('conference', () => {
-  // ✅ 全量安全預設值（絕不允許 undefined 進入 Vue 模板）
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -103,9 +101,9 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // === Actions ===
   function sync() {
-    safeSync({
+    if (!ensureFB() || !_set || !_stateRef) return
+    _set(_stateRef, {
       meetingPhase: meetingPhase.value, screenMode: screenMode.value, currentSection: currentSection.value,
       rollCallStatus: JSON.parse(JSON.stringify(rollCallStatus)), isRollCallActive: isRollCallActive.value,
       rollCallFinished: rollCallFinished.value, rollCallThresholds: JSON.parse(JSON.stringify(rollCallThresholds)),
@@ -119,7 +117,7 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value
-    })
+    }).catch(() => {})
   }
 
   function clearAllTimers() {
@@ -190,7 +188,7 @@ export const useConferenceStore = defineStore('conference', () => {
   }
   function submitMotion(type, country, details) {
     if (!type || !country) return
-    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('️ 僅理事國可動議')
+    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
     if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('⚠️ 僅P5可提閉門')
     if (type === '有主持核心磋商') {
       const t = (details.totalTime || 10) * 60, s = details.speakTime || 60
