@@ -1,8 +1,9 @@
 // src/stores/conference.js (開頭部分)
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
-import { db, auth } from '../firebase' 
-import { ref as dbRef, set, onValue } from 'firebase/database'
+// 使用全域 window.firebase
+const { db, auth, dbMethods } = window.firebase
+const { ref: dbRef, set, onValue } = dbMethods
 
 export const useConferenceStore = defineStore('conference', () => {
   // === State ===

@@ -7,6 +7,43 @@
   </head>
   <body>
     <div id="app"></div>
+    
+    <!-- Firebase CDN Scripts -->
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
+      import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'
+      import { getDatabase, ref as dbRef, set, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
+      
+      const firebaseConfig = {
+        apiKey: "AIzaSyBv7OleZaWKZTJS_TFW2E3u4ln5Rs7nkWo",
+        authDomain: "tymun-security-council.firebaseapp.com",
+        databaseURL: "https://tymun-security-council-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "tymun-security-council",
+        storageBucket: "tymun-security-council.firebasestorage.app",
+        messagingSenderId: "16719353168",
+        appId: "1:16719353168:web:1bb9f60a97641b3babc855"
+      }
+      
+      const app = initializeApp(firebaseConfig)
+      
+      // 掛載到 window 物件供全域使用
+      window.firebase = {
+        app,
+        auth: getAuth(app),
+        db: getDatabase(app),
+        authMethods: {
+          onAuthStateChanged,
+          signInWithEmailAndPassword,
+          signOut
+        },
+        dbMethods: {
+          ref: dbRef,
+          set,
+          onValue
+        }
+      }
+    </script>
+    
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

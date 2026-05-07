@@ -18,8 +18,6 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../firebase'
 
 const router = useRouter()
 const email = ref('')
@@ -31,7 +29,8 @@ async function handleLogin() {
   loading.value = true
   error.value = ''
   try {
-    await signInWithEmailAndPassword(auth, email.value, password.value)
+    const { auth, authMethods } = window.firebase
+    await authMethods.signInWithEmailAndPassword(auth, email.value, password.value)
     router.push('/')
   } catch (err) {
     error.value = err.code === 'auth/invalid-credential' ? '帳號或密碼錯誤' : '登入失敗，請重試'
