@@ -4,6 +4,7 @@
       <h1>&#127963; TYMUN 2026 安全理事會會議畫面</h1>
       <div class="status-bar">
         <span class="phase">{{ store.meetingPhase }}</span>
+        <span class="agenda-display">📌 {{ store.currentSection }}</span>
         <span class="time">{{ currentTime }}</span>
       </div>
     </header>
@@ -20,8 +21,28 @@
             </span>
           </div>
         </div>
-        <div v-if="store.rollCallFinished" class="thresholds">
-          <p>總數: {{ store.rollCallThresholds.total }} | 簡單多數: {{ store.rollCallThresholds.simple }} | 絕對多數: {{ store.rollCallThresholds.absolute }} | 1/5: {{ store.rollCallThresholds.oneFifth }}</p>
+        <div v-if="store.rollCallFinished" class="roll-call-summary">
+          <div class="attendance-count">
+            <strong>出席代表：{{ Object.values(store.rollCallStatus).filter(s => s === 'present').length }} / {{ store.delegates.length }}</strong>
+          </div>
+          <div class="voting-thresholds">
+            <div class="threshold-item">
+              <span>📊 總席次</span>
+              <strong>{{ store.rollCallThresholds.total }}</strong>
+            </div>
+            <div class="threshold-item">
+              <span>✓ 簡單多數</span>
+              <strong>{{ store.rollCallThresholds.simple }}</strong>
+            </div>
+            <div class="threshold-item">
+              <span>✓✓ 絕對多數 (2/3)</span>
+              <strong>{{ store.rollCallThresholds.absolute }}</strong>
+            </div>
+            <div class="threshold-item">
+              <span>🔢 1/5 提議門檻</span>
+              <strong>{{ store.rollCallThresholds.oneFifth }}</strong>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -80,12 +101,12 @@
       <section v-else class="default-panel">
         <div class="info-grid">
           <div class="card">
-            <h3>🎤 常設發言人名單</h3>
+            <!-- ✅ 字體加大至與標題相同 -->
+            <h3 class="large-section-title">🎤 常設發言人名單</h3>
             <div class="current-speaker">
-              當前：{{ store.currentGeneralSpeaker || '無' }}
+              <span>當前：{{ store.currentGeneralSpeaker || '無' }}</span>
               <span class="timer">{{ formatTime(store.generalSpeakerTimer) }}</span>
             </div>
-            <!-- ✅ 加大字體：列表項目使用 .general-list-item 樣式 -->
             <div class="list">
               <div v-for="(spk, i) in store.generalList" :key="i" class="general-list-item">
                 {{ spk.country }} ({{ spk.time }}秒)
@@ -139,11 +160,12 @@ onUnmounted(() => {
 
 <style scoped>
 .screen-container { min-height: 100vh; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
-.screen-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 20px; }
-h1 { margin: 0; font-size: 1.8rem; color: #f8fafc; text-align: center; width: 100%; }
-.status-bar { display: flex; gap: 20px; font-size: 1.1rem; }
-.phase { background: #2563eb; padding: 5px 12px; border-radius: 6px; }
-.time { font-family: monospace; color: #94a3b8; }
+.screen-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; }
+.status-bar { display: flex; gap: 15px; align-items: center; }
+.phase { background: #2563eb; padding: 8px 16px; border-radius: 8px; font-weight: 600; }
+.agenda-display { background: #059669; padding: 8px 16px; border-radius: 8px; font-weight: 600; }
+.time { font-family: monospace; color: #94a3b8; font-size: 1.1rem; }
 
 .mode-panel { text-align: center; padding: 40px 0; }
 .timer-large { font-size: 5rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 20px 0; }
@@ -158,27 +180,86 @@ h1 { margin: 0; font-size: 1.8rem; color: #f8fafc; text-align: center; width: 10
 .status.present { color: #4ade80; }
 .status.late { color: #fbbf24; }
 .status.absent { color: #f87171; }
-.thresholds { margin-top: 20px; font-size: 1.2rem; color: #cbd5e1; }
+
+/* ✅ 點名完成後的統計資訊 */
+.roll-call-summary { 
+  margin-top: 30px; 
+  padding: 25px; 
+  background: #1e293b; 
+  border-radius: 12px; 
+  max-width: 800px; 
+  margin-left: auto; 
+  margin-right: auto;
+}
+.attendance-count {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #334155;
+  color: #4ade80;
+}
+.voting-thresholds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+.threshold-item {
+  background: #0f172a;
+  padding: 15px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.threshold-item span {
+  font-size: 1rem;
+  color: #94a3b8;
+  margin-bottom: 5px;
+}
+.threshold-item strong {
+  font-size: 2rem;
+  color: #fbbf24;
+}
 
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
-.card { background: #1e293b; padding: 20px; border-radius: 10px; }
-h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; color: #94a3b8; }
-.current-speaker { font-size: 1.2rem; margin-bottom: 15px; display: flex; justify-content: space-between; }
-.timer { font-family: monospace; color: #fbbf24; font-weight: bold; }
+.card { background: #1e293b; padding: 25px; border-radius: 12px; }
 
-/* ✅ 加大常設發言人名單格子（投影專用） */
-.list .general-list-item {
-  padding: 18px 20px;          /* ✅ 增加上下內距 */
+/* ✅ 加大標題字體至與主標題相同 */
+.large-section-title {
+  margin-top: 0;
   border-bottom: 2px solid #334155;
-  font-size: 1.8rem;           /* ✅ 字體加大（原 1.3rem → 1.8rem） */
-  font-weight: 600;            /* ✅ 加粗 */
-  line-height: 1.4;            /* ✅ 增加行高 */
-  letter-spacing: 0.5px;       /* ✅ 微調字距 */
-  min-height: 60px;            /* ✅ 確保格子高度 */
+  padding-bottom: 15px;
+  color: #94a3b8;
+  font-size: 2.2rem; /* ✅ 與主標題接近的大小 */
+  font-weight: 700;
+}
+
+h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; color: #94a3b8; }
+.current-speaker { 
+  font-size: 1.5rem; 
+  margin-bottom: 20px; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+  padding: 15px;
+  background: #0f172a;
+  border-radius: 8px;
+}
+.timer { font-family: monospace; color: #fbbf24; font-weight: bold; font-size: 1.8rem; }
+
+/* ✅ 加大常設發言人名單 */
+.list .general-list-item {
+  padding: 20px 25px;
+  border-bottom: 2px solid #334155;
+  font-size: 2rem; /* ✅ 與標題相近 */
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+  min-height: 70px;
   display: flex;
   align-items: center;
 }
 .doc-list { display: flex; flex-wrap: wrap; gap: 10px; }
-.doc-tag { background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; }
-.empty { color: #64748b; padding: 15px 0; }
+.doc-tag { background: #334155; padding: 8px 16px; border-radius: 6px; font-size: 1rem; }
+.empty { color: #64748b; padding: 15px 0; text-align: center; }
 </style>
