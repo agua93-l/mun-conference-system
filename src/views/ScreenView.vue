@@ -1,7 +1,7 @@
 <template>
   <div class="screen-container">
     <header class="screen-header">
-      <h1 class="main-title">&#127963; TYMUN 2026 安全理事会会议画面</h1>
+      <h1>&#127963; TYMUN 2026 安全理事會會議畫面</h1>
       <div class="status-bar">
         <span class="phase">{{ store.meetingPhase }}</span>
         <span class="time">{{ currentTime }}</span>
@@ -9,95 +9,98 @@
     </header>
 
     <main class="screen-content">
-      <!-- 点名模式 -->
+      <!-- 點名模式 -->
       <section v-if="store.screenMode === 'roll_call'" class="mode-panel">
-        <h2>📋 点名进行中</h2>
+        <h2>📋 點名進行中</h2>
         <div class="roll-call-grid">
           <div v-for="d in store.delegates" :key="d.name" class="roll-call-item">
             <span class="name">{{ d.name }}</span>
             <span :class="['status', store.rollCallStatus[d.name]]">
-              {{ store.rollCallStatus[d.name] === 'present' ? '出席' : store.rollCallStatus[d.name] === 'late' ? '迟到' : store.rollCallStatus[d.name] === 'absent' ? '缺席' : '待点' }}
+              {{ store.rollCallStatus[d.name] === 'present' ? '出席' : store.rollCallStatus[d.name] === 'late' ? '遲到' : store.rollCallStatus[d.name] === 'absent' ? '缺席' : '待點' }}
             </span>
           </div>
         </div>
         <div v-if="store.rollCallFinished" class="thresholds">
-          <p>总数: {{ store.rollCallThresholds.total }} | 简单多数: {{ store.rollCallThresholds.simple }} | 绝对多数: {{ store.rollCallThresholds.absolute }} | 1/5: {{ store.rollCallThresholds.oneFifth }}</p>
+          <p>總數: {{ store.rollCallThresholds.total }} | 簡單多數: {{ store.rollCallThresholds.simple }} | 絕對多數: {{ store.rollCallThresholds.absolute }} | 1/5: {{ store.rollCallThresholds.oneFifth }}</p>
         </div>
       </section>
 
-      <!-- 自由磋商/全体咨询 -->
+      <!-- 自由磋商/全體諮詢 -->
       <section v-else-if="store.screenMode === 'caucus'" class="mode-panel">
-        <h2> {{ store.meetingPhase }}</h2>
+        <h2>{{ store.meetingPhase }}</h2>
         <div class="timer-large">{{ formatTime(store.caucusTotalTimer) }}</div>
       </section>
 
       <!-- 有主持核心磋商 -->
       <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel">
         <h2>🎤 有主持核心磋商</h2>
-        <div class="topic">主题：{{ store.modCaucusTopic || '未指定' }}</div>
+        <div class="topic">主題：{{ store.modCaucusTopic || '未指定' }}</div>
         <div class="timers">
           <div class="timer-box">
-            <span>总时长</span>
+            <span>總時長</span>
             <div class="time">{{ formatTime(store.modCaucusTotalTimer) }}</div>
           </div>
           <div class="timer-box">
-            <span>当前发言人</span>
-            <div class="speaker">{{ store.currentModSpeaker || '无' }}</div>
+            <span>當前發言人</span>
+            <div class="speaker">{{ store.currentModSpeaker || '無' }}</div>
             <div class="time">{{ formatTime(store.modCaucusSpeakerTimer) }}</div>
           </div>
         </div>
         <div class="mod-list">
-          <h3>发言顺序</h3>
+          <h3>發言順序</h3>
           <div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-row">
             <span>{{ i + 1 }}. {{ spk.country }}</span>
           </div>
-          <div v-if="store.modCaucusList.length === 0" class="empty">暂无顺序</div>
+          <div v-if="store.modCaucusList.length === 0" class="empty">暫無順序</div>
         </div>
       </section>
 
-      <!-- P5闭门 -->
+      <!-- P5閉門 -->
       <section v-else-if="store.screenMode === 'p5_closed'" class="mode-panel">
-        <h2> P5 闭门协商</h2>
+        <h2>🔒 P5 閉門協商</h2>
         <div class="timer-large">{{ formatTime(store.p5Timer) }}</div>
       </section>
 
-      <!-- 暂停 -->
+      <!-- 暫停 -->
       <section v-else-if="store.screenMode === 'suspended'" class="mode-panel">
-        <h2>⏸️ 会议暂停</h2>
+        <h2>⏸️ 會議暫停</h2>
       </section>
 
-      <!-- 动议表决 -->
+      <!-- 動議表決 -->
       <section v-else-if="store.screenMode === 'motion_voting' && store.currentVotingMotion" class="mode-panel">
-        <h2>🗳️ 动议表决</h2>
+        <h2>🗳️ 動議表決</h2>
         <div class="motion-detail">
-          <p><strong>类型：</strong>{{ store.currentVotingMotion.type }}</p>
-          <p><strong>动议国：</strong>{{ store.currentVotingMotion.country }}</p>
-          <p v-if="store.currentVotingMotion.details.topic"><strong>主题：</strong>{{ store.currentVotingMotion.details.topic }}</p>
+          <p><strong>類型：</strong>{{ store.currentVotingMotion.type }}</p>
+          <p><strong>動議國：</strong>{{ store.currentVotingMotion.country }}</p>
+          <p v-if="store.currentVotingMotion.details.topic"><strong>主題：</strong>{{ store.currentVotingMotion.details.topic }}</p>
         </div>
       </section>
 
-      <!-- 预设/正式辩论模式 -->
+      <!-- 預設/正式辯論模式 -->
       <section v-else class="default-panel">
         <div class="info-grid">
           <div class="card">
-            <h3>🎤 常设发言人名录</h3>
+            <h3>🎤 常設發言人名單</h3>
             <div class="current-speaker">
-              当前：{{ store.currentGeneralSpeaker || '无' }}
+              當前：{{ store.currentGeneralSpeaker || '無' }}
               <span class="timer">{{ formatTime(store.generalSpeakerTimer) }}</span>
             </div>
+            <!-- ✅ 加大字體：列表項目使用 .general-list-item 樣式 -->
             <div class="list">
-              <div v-for="(spk, i) in store.generalList" :key="i" class="row">{{ spk.country }} ({{ spk.time }}s)</div>
-              <div v-if="store.generalList.length === 0" class="empty">无登记代表</div>
+              <div v-for="(spk, i) in store.generalList" :key="i" class="general-list-item">
+                {{ spk.country }} ({{ spk.time }}秒)
+              </div>
+              <div v-if="store.generalList.length === 0" class="empty">無登記代表</div>
             </div>
           </div>
 
           <div class="card">
-            <h3>📜 场上文件</h3>
+            <h3>📜 場上文件</h3>
             <div class="doc-list">
               <div v-for="doc in store.documents" :key="doc.number" class="doc-tag">
                 [{{ doc.type }} {{ doc.number }}] {{ doc.title }}
               </div>
-              <div v-if="store.documents.length === 0" class="empty">无公告文件</div>
+              <div v-if="store.documents.length === 0" class="empty">無公告文件</div>
             </div>
           </div>
         </div>
@@ -136,9 +139,9 @@ onUnmounted(() => {
 
 <style scoped>
 .screen-container { min-height: 100vh; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
-.screen-header { display: flex; flex-direction: column; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 20px; }
-h1, .main-title { margin: 0; font-size: 1.8rem; color: #f8fafc; text-align: center; width: 100%; }
-.status-bar { display: flex; gap: 20px; font-size: 1.1rem; margin-top: 10px; }
+.screen-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 20px; }
+h1 { margin: 0; font-size: 1.8rem; color: #f8fafc; text-align: center; width: 100%; }
+.status-bar { display: flex; gap: 20px; font-size: 1.1rem; }
 .phase { background: #2563eb; padding: 5px 12px; border-radius: 6px; }
 .time { font-family: monospace; color: #94a3b8; }
 
@@ -162,7 +165,14 @@ h1, .main-title { margin: 0; font-size: 1.8rem; color: #f8fafc; text-align: cent
 h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; color: #94a3b8; }
 .current-speaker { font-size: 1.2rem; margin-bottom: 15px; display: flex; justify-content: space-between; }
 .timer { font-family: monospace; color: #fbbf24; font-weight: bold; }
-.list .row, .mod-list .list-row { padding: 8px 0; border-bottom: 1px solid #334155; }
+
+/* ✅ 加大常設發言人名單字體 */
+.list .general-list-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #334155;
+  font-size: 1.3rem; /* ✅ 字體加大 */
+  font-weight: 500;
+}
 .doc-list { display: flex; flex-wrap: wrap; gap: 10px; }
 .doc-tag { background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; }
 .empty { color: #64748b; padding: 15px 0; }

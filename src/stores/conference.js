@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-// 🔒 模組層級：安全檢查 CDN 是否載入
+// 🔒 Firebase 安全封裝
 let fbReady = false
 let dbRefFn, setFn, onValueFn, stateRef
 
@@ -22,7 +22,6 @@ const ensureFB = () => {
 const initRetry = setInterval(() => { if (ensureFB()) clearInterval(initRetry) }, 200)
 
 export const useConferenceStore = defineStore('conference', () => {
-  // ✅ 所有狀態變數定義在 Store 內部（解決 ReferenceError）
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -37,7 +36,10 @@ export const useConferenceStore = defineStore('conference', () => {
   const isGeneralTimerRunning = ref(false)
   const motionQueue = ref([])
   const currentVotingMotion = ref(null)
+  
+  // ✅ 修復：stats 初始化時確保 motions 為空物件，避免 undefined 錯誤
   const stats = reactive({})
+  
   const documents = ref([])
   const p5Timer = ref(0)
   const caucusTotalTimer = ref(0)
@@ -64,7 +66,6 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // 🔥 監聽器定義在 Store 內部，確保能正確存取 meetingPhase 等變數
   const startListener = () => {
     if (!ensureFB()) { setTimeout(startListener, 300); return }
     onValueFn(stateRef, (snap) => {
@@ -84,7 +85,14 @@ export const useConferenceStore = defineStore('conference', () => {
       isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
       motionQueue.value = d.motionQueue || []
       currentVotingMotion.value = d.currentVotingMotion || null
-      Object.assign(stats, d.stats || {})
+      
+      // ✅ 修復：安全合併 stats，確保 motions 永遠是物件
+      Object.keys(d.stats || {}).forEach(key => {
+        if (!stats[key]) stats[key] = { speeches: 0, motions: {} }
+        if (!stats[key].motions) stats[key].motions = {}
+        Object.assign(stats[key], d.stats[key])
+      })
+      
       documents.value = d.documents || []
       p5Timer.value = d.p5Timer ?? 0
       caucusTotalTimer.value = d.caucusTotalTimer ?? 0
@@ -99,7 +107,6 @@ export const useConferenceStore = defineStore('conference', () => {
   }
   startListener()
 
-  // ✅ 同步函數也在 Store 內部，可安全讀取所有 ref
   function sync() {
     if (!ensureFB()) return
     setFn(stateRef, {
@@ -178,8 +185,11 @@ export const useConferenceStore = defineStore('conference', () => {
   function addToGeneralList(c) {
     if (!c || generalList.value.find(s => s.country === c)) return
     generalList.value.push({ country: c, time: generalTimeLimit.value })
+    // ✅ 修復：安全初始化 stats[country].motions
     if (!stats[c]) stats[c] = { speeches: 0, motions: {} }
-    stats[c].speeches++; sync()
+    if (!stats[c].motions) stats[c].motions = {}
+    stats[c].speeches++
+    sync()
   }
   function addToModCaucus(c) {
     if (!c || modCaucusList.value.find(s => s.country === c)) return
@@ -195,9 +205,12 @@ export const useConferenceStore = defineStore('conference', () => {
     }
     const map = { '終止會議':1, '暫停會議':2, '自由磋商':3, '有主持核心磋商':4, '介紹決議草案':5, '介紹修正案':6, '結束辯論':7, 'P5閉門協商':4 }
     motionQueue.value.push({ id: Date.now(), type, country, details: details||{}, priority: map[type]||99 })
-    if (!stats[country]) stats[country] = { speeches:0, motions:{} }
+    // ✅ 修復：安全初始化 stats[country].motions
+    if (!stats[country]) stats[country] = { speeches: 0, motions: {} }
+    if (!stats[country].motions) stats[country].motions = {}
     if (!stats[country].motions[type]) stats[country].motions[type] = 0
-    stats[country].motions[type]++; sync()
+    stats[country].motions[type]++
+    sync()
   }
   function approveMotion(i) {
     if (i<0||i>=motionQueue.value.length) return
