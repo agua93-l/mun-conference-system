@@ -14,6 +14,7 @@
         </select>
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
+        <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商"></button>
         <button class="btn-logout" @click="handleLogout">🚪 登出</button>
       </div>
     </header>
@@ -67,10 +68,12 @@
             <div class="roll-call-grid">
               <div v-for="d in store.delegates" :key="d.name" class="roll-call-item">
                 <span class="rc-name">{{ d.name }}</span>
-                <div class="rc-buttons">
+               <div class="rc-buttons">
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'present' ? 'active-present' : '']" @click="store.markRollCall(d.name, 'present')">出席</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'late' ? 'active-late' : '']" @click="store.markRollCall(d.name, 'late')">遲到</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'absent' ? 'active-absent' : '']" @click="store.markRollCall(d.name, 'absent')">缺席</button>
+                  <!-- ✅ 新增：已出席者可改為遲到 -->
+                  <button v-if="store.rollCallStatus[d.name] === 'present'" class="rc-btn-late" @click="store.changeToLate(d.name)">改遲到</button>
                 </div>
               </div>
             </div>
@@ -299,4 +302,10 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-logout { background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-logout:hover { background: #455a64; }
 .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.rc-btn-change-late { background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 0.75rem; margin-left: 4px; }
+.rc-btn-change-late:hover { background: #f57c00; }
+.btn-clear-mod {  width: 100%;  padding: 10px;  background: #f44336;  color: white;  border: none;  border-radius: 6px;  cursor: pointer;  margin-top: 10px;  font-weight: 600; }
+.btn-clear-mod:hover { background: #d32f2f; }
+.btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-return-debate:hover { background: #00838f; }
 </style>
