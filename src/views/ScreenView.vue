@@ -166,12 +166,17 @@ h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; colo
 .current-speaker { font-size: 1.2rem; margin-bottom: 15px; display: flex; justify-content: space-between; }
 .timer { font-family: monospace; color: #fbbf24; font-weight: bold; }
 
-/* ✅ 加大常設發言人名單字體 */
+/* ✅ 加大常設發言人名單格子（投影專用） */
 .list .general-list-item {
-  padding: 10px 0;
-  border-bottom: 1px solid #334155;
-  font-size: 1.3rem; /* ✅ 字體加大 */
-  font-weight: 500;
+  padding: 18px 20px;          /* ✅ 增加上下內距 */
+  border-bottom: 2px solid #334155;
+  font-size: 1.8rem;           /* ✅ 字體加大（原 1.3rem → 1.8rem） */
+  font-weight: 600;            /* ✅ 加粗 */
+  line-height: 1.4;            /* ✅ 增加行高 */
+  letter-spacing: 0.5px;       /* ✅ 微調字距 */
+  min-height: 60px;            /* ✅ 確保格子高度 */
+  display: flex;
+  align-items: center;
 }
 .doc-list { display: flex; flex-wrap: wrap; gap: 10px; }
 .doc-tag { background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; }
