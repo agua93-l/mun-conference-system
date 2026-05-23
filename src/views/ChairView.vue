@@ -14,6 +14,7 @@
         </select>
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
+        <button class="btn-reject-next" @click="store.rejectMotion()" title="駁回當前動議，自動跳至下一筆排序動議"></button>
         <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商"></button>
         <button class="btn-logout" @click="handleLogout">🚪 登出</button>
       </div>
@@ -157,29 +158,27 @@
           </div>
         </div>
 
-        <div class="card" v-if="store.screenMode === 'mod_caucus' || store.modCaucusList.length > 0">
-          <h3>🎤 有主持核心磋商控制</h3>
-          <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong> (依動議自動帶入)</div>
+        <div class="mod-control-group">
           <div class="input-row">
-            <select v-model="modSelCountry">
+            <label class="mod-label">🌍 加入名單國家：</label>
+            <select v-model="modSelCountry" class="mod-select">
               <option value="">選擇國家</option>
               <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
-            <button @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
+            <button class="btn-add-mod" @click="store.addToModCaucus(modSelCountry); modSelCountry=''">➕ 加入特設名單</button>
           </div>
-          
-          <div class="list-scroll">
+          <div class="list-scroll mod-scroll">
             <div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item">
-              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span>
+              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}秒)</span>
             </div>
             <div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div>
           </div>
-          
           <div class="timer-control-row">
-            <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位</button>
+            <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位發言人</button>
             <button :class="['btn-timer', store.isModCaucusRunning ? 'active' : '']" @click="store.toggleModCaucusTimer">
-              {{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}
+              {{ store.isModCaucusRunning ? '⏸️ 暫停計時' : '▶️ 開始計時' }}
             </button>
+            <button class="btn-clear-mod" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">🗑️ 清空磋商名單</button>
             <div class="dual-timer">
               <span>總時長: {{ formatTime(store.modCaucusTotalTimer) }}</span>
               <span>當前: {{ formatTime(store.modCaucusSpeakerTimer) }}</span>
@@ -308,4 +307,12 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-clear-mod:hover { background: #d32f2f; }
 .btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
 .btn-return-debate:hover { background: #00838f; }
+.mod-control-group { margin-top: 15px; }
+.mod-label { font-weight: 600; margin-right: 10px; }
+.mod-select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+.btn-add-mod { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+.mod-scroll { max-height: 120px; overflow-y: auto; background: #f0f4f8; padding: 8px; border-radius: 6px; margin: 10px 0; }
+.btn-clear-mod { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
+.btn-reject-next { background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.btn-reject-next:hover { background: #f57c00; }
 </style>
