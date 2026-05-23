@@ -2,38 +2,27 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-// 🔒 Firebase 安全初始化模組
-let db = null, dbRef = null, set = null, onValue = null
-let isReady = false
+//  Firebase 安全封裝（消除載入延遲競態條件）
 let stateRef = null
+let isListening = false
 
-const initFirebase = async () => {
-  if (isReady || !window.firebase) return
-  try {
-    const fb = window.firebase
-    if (!fb.db || !fb.dbMethods) throw new Error('Firebase DB/Methods not ready')
-    
-    db = fb.db
-    const methods = fb.dbMethods
-    dbRef = methods.ref
-    set = methods.set
-    onValue = methods.onValue
-    
-    stateRef = dbRef(db, 'mun_state')
-    isReady = true
-    console.log('✅ Firebase DB 連線成功，開始同步')
-    startSync()
-  } catch (err) {
-    console.warn('⏳ Firebase 尚未準備完成，等待中...', err)
-    setTimeout(initFirebase, 200)
-  }
+const getFB = () => {
+  if (!window.firebase || !window.firebase.db || !window.firebase.dbMethods) return null
+  return window.firebase
 }
 
-const startSync = () => {
-  if (!isReady || !onValue) return
-  onValue(stateRef, (snapshot) => {
-    if (!snapshot.exists()) return
-    const d = snapshot.val()
+const setupListener = () => {
+  if (isListening) return
+  const fb = getFB()
+  if (!fb) { setTimeout(setupListener, 300); return }
+  
+  isListening = true
+  const { db, dbMethods } = fb
+  stateRef = dbMethods.ref(db, 'mun_state')
+  
+  dbMethods.onValue(stateRef, (snap) => {
+    if (!snap.exists()) return
+    const d = snap.val()
     meetingPhase.value = d.meetingPhase ?? '正式辯論'
     screenMode.value = d.screenMode ?? 'default'
     currentSection.value = d.currentSection ?? '議程 1'
@@ -60,13 +49,13 @@ const startSync = () => {
     currentModSpeaker.value = d.currentModSpeaker || ''
     isModCaucusRunning.value = !!d.isModCaucusRunning
   })
+  console.log(' Firebase 監聽器已啟動')
 }
 
-// 啟動初始化
-initFirebase()
+// 模組載入時立即嘗試綁定
+setupListener()
 
 export const useConferenceStore = defineStore('conference', () => {
-  // === State ===
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -108,10 +97,14 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // === Actions ===
   function sync() {
-    if (!isReady || !set || !stateRef) return
-    set(stateRef, {
+    const fb = getFB()
+    if (!fb || !stateRef) {
+      console.warn('⏳ 等待 Firebase 就緒...')
+      setTimeout(sync, 300)
+      return
+    }
+    fb.dbMethods.set(stateRef, {
       meetingPhase: meetingPhase.value, screenMode: screenMode.value, currentSection: currentSection.value,
       rollCallStatus: JSON.parse(JSON.stringify(rollCallStatus)), isRollCallActive: isRollCallActive.value,
       rollCallFinished: rollCallFinished.value, rollCallThresholds: JSON.parse(JSON.stringify(rollCallThresholds)),
@@ -125,7 +118,7 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value
-    }).catch(err => console.warn('⚠️ 同步失敗:', err))
+    }).catch(err => console.error('⚠️ 同步寫入失敗:', err))
   }
 
   function clearAllTimers() {
@@ -197,7 +190,7 @@ export const useConferenceStore = defineStore('conference', () => {
   function submitMotion(type, country, details) {
     if (!type || !country) return
     if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
-    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('️ 僅P5可提閉門')
+    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('⚠️ 僅P5可提閉門')
     if (type === '有主持核心磋商') {
       const t = (details.totalTime || 10) * 60, s = details.speakTime || 60
       if (t % s !== 0) return alert('⚠️ 發言時長須整除總時長')
