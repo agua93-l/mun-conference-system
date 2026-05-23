@@ -2,60 +2,27 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-//  Firebase 安全封裝（消除載入延遲競態條件）
-let stateRef = null
-let isListening = false
+// 🔒 模組層級：安全檢查 CDN 是否載入
+let fbReady = false
+let dbRefFn, setFn, onValueFn, stateRef
 
-const getFB = () => {
-  if (!window.firebase || !window.firebase.db || !window.firebase.dbMethods) return null
-  return window.firebase
+const ensureFB = () => {
+  if (fbReady) return true
+  const fb = window.firebase
+  if (!fb || !fb.db || !fb.dbMethods) return false
+  dbRefFn = fb.dbMethods.ref
+  setFn = fb.dbMethods.set
+  onValueFn = fb.dbMethods.onValue
+  stateRef = dbRefFn(fb.db, 'mun_state')
+  fbReady = true
+  return true
 }
 
-const setupListener = () => {
-  if (isListening) return
-  const fb = getFB()
-  if (!fb) { setTimeout(setupListener, 300); return }
-  
-  isListening = true
-  const { db, dbMethods } = fb
-  stateRef = dbMethods.ref(db, 'mun_state')
-  
-  dbMethods.onValue(stateRef, (snap) => {
-    if (!snap.exists()) return
-    const d = snap.val()
-    meetingPhase.value = d.meetingPhase ?? '正式辯論'
-    screenMode.value = d.screenMode ?? 'default'
-    currentSection.value = d.currentSection ?? '議程 1'
-    Object.assign(rollCallStatus, d.rollCallStatus || {})
-    isRollCallActive.value = !!d.isRollCallActive
-    rollCallFinished.value = !!d.rollCallFinished
-    Object.assign(rollCallThresholds, d.rollCallThresholds || {})
-    generalTimeLimit.value = d.generalTimeLimit ?? 60
-    generalList.value = d.generalList || []
-    currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
-    generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
-    isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
-    motionQueue.value = d.motionQueue || []
-    currentVotingMotion.value = d.currentVotingMotion || null
-    Object.assign(stats, d.stats || {})
-    documents.value = d.documents || []
-    p5Timer.value = d.p5Timer ?? 0
-    caucusTotalTimer.value = d.caucusTotalTimer ?? 0
-    modCaucusTopic.value = d.modCaucusTopic || ''
-    modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
-    modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
-    modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
-    modCaucusList.value = d.modCaucusList || []
-    currentModSpeaker.value = d.currentModSpeaker || ''
-    isModCaucusRunning.value = !!d.isModCaucusRunning
-  })
-  console.log(' Firebase 監聽器已啟動')
-}
-
-// 模組載入時立即嘗試綁定
-setupListener()
+// 自動重試直到 CDN 就緒
+const initRetry = setInterval(() => { if (ensureFB()) clearInterval(initRetry) }, 200)
 
 export const useConferenceStore = defineStore('conference', () => {
+  // ✅ 所有狀態變數定義在 Store 內部（解決 ReferenceError）
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -97,14 +64,45 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
+  // 🔥 監聽器定義在 Store 內部，確保能正確存取 meetingPhase 等變數
+  const startListener = () => {
+    if (!ensureFB()) { setTimeout(startListener, 300); return }
+    onValueFn(stateRef, (snap) => {
+      if (!snap.exists()) return
+      const d = snap.val()
+      meetingPhase.value = d.meetingPhase ?? '正式辯論'
+      screenMode.value = d.screenMode ?? 'default'
+      currentSection.value = d.currentSection ?? '議程 1'
+      Object.assign(rollCallStatus, d.rollCallStatus || {})
+      isRollCallActive.value = !!d.isRollCallActive
+      rollCallFinished.value = !!d.rollCallFinished
+      Object.assign(rollCallThresholds, d.rollCallThresholds || {})
+      generalTimeLimit.value = d.generalTimeLimit ?? 60
+      generalList.value = d.generalList || []
+      currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
+      generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
+      isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
+      motionQueue.value = d.motionQueue || []
+      currentVotingMotion.value = d.currentVotingMotion || null
+      Object.assign(stats, d.stats || {})
+      documents.value = d.documents || []
+      p5Timer.value = d.p5Timer ?? 0
+      caucusTotalTimer.value = d.caucusTotalTimer ?? 0
+      modCaucusTopic.value = d.modCaucusTopic || ''
+      modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
+      modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
+      modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
+      modCaucusList.value = d.modCaucusList || []
+      currentModSpeaker.value = d.currentModSpeaker || ''
+      isModCaucusRunning.value = !!d.isModCaucusRunning
+    })
+  }
+  startListener()
+
+  // ✅ 同步函數也在 Store 內部，可安全讀取所有 ref
   function sync() {
-    const fb = getFB()
-    if (!fb || !stateRef) {
-      console.warn('⏳ 等待 Firebase 就緒...')
-      setTimeout(sync, 300)
-      return
-    }
-    fb.dbMethods.set(stateRef, {
+    if (!ensureFB()) return
+    setFn(stateRef, {
       meetingPhase: meetingPhase.value, screenMode: screenMode.value, currentSection: currentSection.value,
       rollCallStatus: JSON.parse(JSON.stringify(rollCallStatus)), isRollCallActive: isRollCallActive.value,
       rollCallFinished: rollCallFinished.value, rollCallThresholds: JSON.parse(JSON.stringify(rollCallThresholds)),
@@ -118,7 +116,7 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value
-    }).catch(err => console.error('⚠️ 同步寫入失敗:', err))
+    }).catch(() => {})
   }
 
   function clearAllTimers() {
