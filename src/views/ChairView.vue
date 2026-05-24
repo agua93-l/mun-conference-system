@@ -3,7 +3,7 @@
     <header class="top-bar">
       <h1>🏛️ 安理會主席控制台</h1>
       <div class="status-pill">{{ store.meetingPhase }}</div>
-     <div class="header-actions">
+      <div class="header-actions">
         <select class="section-select" v-model="selectedSection" @change="store.setSection(selectedSection)">
           <option value="議程 1">議程 1 (5/30 09:30~11:30)</option>
           <option value="議程 2">議程 2 (5/30 12:30~14:30)</option>
@@ -13,11 +13,13 @@
           <option value="議程 6">議程 6 (5/31 15:00~17:00)</option>
         </select>
         
-        <!-- ✅ 2. 確保按鈕有清晰的中文文字 -->
-        <button class="btn-open-screen" @click="openScreenView()" title="開啟代表端新分頁">📺 開啟代表端</button>
+        <!-- ✅ 新增按鈕 -->
+        <button class="btn-open-screen" @click="openScreenView">📺 開啟代表端</button>
+        <button class="btn-stats" @click="router.push('/stats')" title="查看各國統計表格">📊 各國統計</button>
+        
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
-        <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商">✅ 返回辯論(清零)</button>
+        <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商">✅ 返回辯論</button>
         <button class="btn-logout" @click="handleLogout">🚪 登出</button>
       </div>
     </header>
@@ -71,31 +73,16 @@
             <div class="roll-call-grid">
               <div v-for="d in store.delegates" :key="d.name" class="roll-call-item">
                 <span class="rc-name">{{ d.name }}</span>
-               <div class="rc-buttons">
+                <div class="rc-buttons">
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'present' ? 'active-present' : '']" @click="store.markRollCall(d.name, 'present')">出席</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'late' ? 'active-late' : '']" @click="store.markRollCall(d.name, 'late')">遲到</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'absent' ? 'active-absent' : '']" @click="store.markRollCall(d.name, 'absent')">缺席</button>
-                  <!-- ✅ 新增：已出席者可改為遲到 -->
-                  <button v-if="store.rollCallStatus[d.name] === 'present'" class="rc-btn-late" @click="store.changeToLate(d.name)">改遲到</button>
+                  <button v-if="store.rollCallStatus[d.name] === 'present'" class="rc-btn-change-late" @click="store.changeToLate(d.name)">↪️ 改遲到</button>
                 </div>
               </div>
             </div>
             <button class="btn-end-rollcall" @click="store.endRollCall()">✅ 點名完畢，返回會議</button>
           </div>
-        </div>
-
-        <div class="card stats-panel">
-          <h3>🔒 各國統計 (發言/動議分類)</h3>
-          <table class="stats-table">
-            <thead><tr><th>國家</th><th>發言次數</th><th>動議分類統計</th></tr></thead>
-            <tbody>
-              <tr v-for="(val, key) in store.stats" :key="key">
-                <td>{{ key }}</td>
-                <td>{{ val.speeches }}</td>
-                <td>{{ Object.entries(val.motions || {}).map(([t, c]) => `${t}: ${c}`).join(' / ') || '無' }}</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -103,9 +90,10 @@
         <div class="card">
           <h3>📜 動議佇列</h3>
           <div class="motion-form">
+            <!-- ✅ 加入唱名表決與共識決 -->
             <select v-model="mType" @change="mDetails={}">
               <option value="">選擇動議類型</option>
-              <option v-for="t in ['自由磋商','全體諮詢','有主持核心磋商','暫停會議','恢復會議','介紹決議草案','P5閉門協商']" :key="t" :value="t">{{ t }}</option>
+              <option v-for="t in ['自由磋商','全體諮詢','有主持核心磋商','暫停會議','恢復會議','介紹決議草案','介紹修正案','P5閉門協商','唱名表決','共識決']" :key="t" :value="t">{{ t }}</option>
             </select>
             <select v-model="mCountry">
               <option value="">動議國</option>
@@ -130,7 +118,7 @@
               <span>{{ m.type }} - {{ m.country }}</span>
               <div class="btn-group">
                 <button class="btn-pass" @click="store.approveMotion(i)">✓ 通過</button>
-                <button class="btn-reject" @click="store.rejectMotion(i)">✗ 駁回</button>
+                <button class="btn-reject" @click="store.rejectMotion()">✗ 駁回</button>
               </div>
             </div>
             <div v-if="store.motionQueue.length === 0" class="empty">佇列為空</div>
@@ -160,25 +148,28 @@
           </div>
         </div>
 
-        <div class="mod-control-group">
+        <div class="card" v-if="store.screenMode === 'mod_caucus'">
+          <h3>🎤 有主持核心磋商控制</h3>
+          <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong> (依動議自動帶入)</div>
           <div class="input-row">
-            <label class="mod-label">🌍 加入名單國家：</label>
-            <select v-model="modSelCountry" class="mod-select">
+            <select v-model="modSelCountry">
               <option value="">選擇國家</option>
               <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
-            <button class="btn-add-mod" @click="store.addToModCaucus(modSelCountry); modSelCountry=''">➕ 加入特設名單</button>
+            <button @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
           </div>
-          <div class="list-scroll mod-scroll">
+          
+          <div class="list-scroll">
             <div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item">
-              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}秒)</span>
+              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span>
             </div>
             <div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div>
           </div>
+          
           <div class="timer-control-row">
-            <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位發言人</button>
+            <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位</button>
             <button :class="['btn-timer', store.isModCaucusRunning ? 'active' : '']" @click="store.toggleModCaucusTimer">
-              {{ store.isModCaucusRunning ? '⏸️ 暫停計時' : '▶️ 開始計時' }}
+              {{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}
             </button>
             <button class="btn-clear-mod" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">🗑️ 清空磋商名單</button>
             <div class="dual-timer">
@@ -232,6 +223,11 @@ function handleLogout() {
   })
 }
 
+function openScreenView() {
+  const route = router.resolve('/screen')
+  window.open(route.href, '_blank')
+}
+
 onMounted(() => {
   const updateClock = () => {
     currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })
@@ -254,11 +250,12 @@ onUnmounted(() => {
 .roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; padding: 5px; }
 .roll-call-item { background: #f9f9f9; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; }
 .rc-name { font-size: 0.85rem; font-weight: bold; text-align: center; }
-.rc-buttons { display: flex; gap: 4px; }
-.rc-btn { flex: 1; padding: 2px 0; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; }
+.rc-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+.rc-btn { flex: 1; padding: 2px 0; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; min-width: 40px; }
 .rc-btn.active-present { background: #4caf50; color: white; border-color: #4caf50; }
 .rc-btn.active-late { background: #ff9800; color: white; border-color: #ff9800; }
 .rc-btn.active-absent { background: #f44336; color: white; border-color: #f44336; }
+.rc-btn-change-late { background: #ff9800; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 0.7rem; }
 .mod-info-badge { background: #e3f2fd; padding: 8px; border-radius: 6px; margin-bottom: 10px; text-align: center; font-size: 0.95rem; }
 .yield-select { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fffbe6; }
 .btn-yield { padding: 8px 12px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; }
@@ -280,9 +277,10 @@ onUnmounted(() => {
 .list-item { padding: 8px; background: #f9f9f9; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; }
 .mod-item { background: #e3f2fd; }
 .empty { text-align: center; color: #888; padding: 10px; }
-.timer-control-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.timer-control-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .btn-next, .btn-timer { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; background: #e0e0e0; }
 .btn-timer.active { background: #4caf50; color: white; }
+.btn-clear-mod { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
 h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
 .input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
@@ -297,47 +295,13 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .live-clock { position: fixed; bottom: 15px; right: 20px; background: rgba(0,0,0,0.85); color: #00ff88; padding: 8px 16px; border-radius: 8px; font-family: monospace; font-size: 14px; z-index: 1000; border: 1px solid #333; }
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
 .status-pill { background: #0055a5; color: white; padding: 5px 15px; border-radius: 20px; }
-.header-actions { display: flex; gap: 10px; align-items: center; }
+.header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .btn-suspend { background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-resume { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-logout { background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-logout:hover { background: #455a64; }
+.btn-open-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.btn-stats { background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.rc-btn-change-late { background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 0.75rem; margin-left: 4px; }
-.rc-btn-change-late:hover { background: #f57c00; }
-.btn-clear-mod {  width: 100%;  padding: 10px;  background: #f44336;  color: white;  border: none;  border-radius: 6px;  cursor: pointer;  margin-top: 10px;  font-weight: 600; }
-.btn-clear-mod:hover { background: #d32f2f; }
-.btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
-.btn-return-debate:hover { background: #00838f; }
-.mod-control-group { margin-top: 15px; }
-.mod-label { font-weight: 600; margin-right: 10px; }
-.mod-select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
-.btn-add-mod { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
-.mod-scroll { max-height: 120px; overflow-y: auto; background: #f0f4f8; padding: 8px; border-radius: 6px; margin: 10px 0; }
-.btn-clear-mod { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
-.btn-reject-next { background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-.btn-reject-next:hover { background: #f57c00; }
-.btn-open-screen { 
-  background: #2196f3; 
-  color: #ffffff; /* 確保白色文字 */
-  border: none; 
-  padding: 8px 16px; 
-  border-radius: 8px; 
-  cursor: pointer; 
-  font-weight: 600; 
-  font-size: 0.95rem;
-}
-.btn-open-screen:hover { background: #1976d2; }
-
-.btn-return-debate { 
-  background: #00acc1; 
-  color: #ffffff; /* 確保白色文字 */
-  border: none; 
-  padding: 8px 16px; 
-  border-radius: 8px; 
-  cursor: pointer; 
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-.btn-return-debate:hover { background: #00838f; }
 </style>

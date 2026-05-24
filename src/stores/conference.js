@@ -43,6 +43,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const votingAbstain = ref(0)
   const votingSkip = ref(0)
   
+  // ✅ 確保 stats 初始化包含所有動議類型
   const stats = reactive({})
   const documents = ref([])
   const p5Timer = ref(0)
@@ -69,6 +70,27 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: 'ICoCA', type: 'observer', p5: false }, { name: '紅十字會', type: 'observer', p5: false },
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
+
+  // ✅ 輔助：確保 stats[country] 結構完整
+  const ensureStatsCountry = (country) => {
+    if (!stats[country]) {
+      stats[country] = { 
+        speeches: 0, 
+        motions: {
+          '自由磋商': 0, '全體諮詢': 0, '有主持核心磋商': 0,
+          '暫停會議': 0, '恢復會議': 0, '介紹決議草案': 0,
+          '介紹修正案': 0, 'P5閉門協商': 0, '唱名表決': 0, '共識決': 0
+        }
+      }
+    }
+    if (!stats[country].motions) {
+      stats[country].motions = {
+        '自由磋商': 0, '全體諮詢': 0, '有主持核心磋商': 0,
+        '暫停會議': 0, '恢復會議': 0, '介紹決議草案': 0,
+        '介紹修正案': 0, 'P5閉門協商': 0, '唱名表決': 0, '共識決': 0
+      }
+    }
+  }
 
   const recalcThresholds = () => {
     const memberDelegates = delegates.filter(d => d.type === 'member')
@@ -120,11 +142,8 @@ export const useConferenceStore = defineStore('conference', () => {
       isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
       
       motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
-      
-      // ✅ 修復：確保 currentVotingMotion 永遠有 details 屬性
       const rawMotion = d.currentVotingMotion || null
       currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
-      
       sortMotionQueue()
 
       votingRound2.value = !!d.votingRound2
@@ -135,11 +154,17 @@ export const useConferenceStore = defineStore('conference', () => {
       votingAbstain.value = d.votingAbstain ?? 0
       votingSkip.value = d.votingSkip ?? 0
 
-      Object.keys(d.stats || {}).forEach(key => {
-        if (!stats[key]) stats[key] = { speeches: 0, motions: {} }
-        if (!stats[key].motions) stats[key].motions = {}
-        Object.assign(stats[key], d.stats[key])
-      })
+      // ✅ 安全合併 stats
+      if (d.stats) {
+        Object.keys(d.stats).forEach(key => {
+          ensureStatsCountry(key)
+          Object.assign(stats[key], d.stats[key])
+          if (d.stats[key].motions) {
+            Object.assign(stats[key].motions, d.stats[key].motions)
+          }
+        })
+      }
+      
       documents.value = d.documents || []
       p5Timer.value = d.p5Timer ?? 0
       caucusTotalTimer.value = d.caucusTotalTimer ?? 0
@@ -270,9 +295,9 @@ export const useConferenceStore = defineStore('conference', () => {
   function addToGeneralList(c) {
     if (!c || generalList.value.find(s => s.country === c)) return
     generalList.value.push({ country: c, time: generalTimeLimit.value })
-    if (!stats[c]) stats[c] = { speeches: 0, motions: {} }
-    if (!stats[c].motions) stats[c].motions = {}
-    stats[c].speeches++; sync()
+    ensureStatsCountry(c)
+    stats[c].speeches++
+    sync()
   }
   function addToModCaucus(c) {
     if (!c || modCaucusList.value.find(s => s.country === c)) return
@@ -287,8 +312,7 @@ export const useConferenceStore = defineStore('conference', () => {
       if (t % s !== 0) return alert('⚠️ 發言時長須整除總時長')
     }
     motionQueue.value.push({ id: Date.now(), type, country, details: details||{}, priority: 0 })
-    if (!stats[country]) stats[country] = { speeches:0, motions:{} }
-    if (!stats[country].motions) stats[country].motions = {}
+    ensureStatsCountry(country)
     if (!stats[country].motions[type]) stats[country].motions[type] = 0
     stats[country].motions[type]++
     sync()
