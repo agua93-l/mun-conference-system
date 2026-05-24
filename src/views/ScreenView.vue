@@ -10,7 +10,7 @@
     </header>
 
     <main class="screen-content">
-      <!-- ✅ 1. 點名模式：恢復網格佈局 -->
+      <!-- 點名模式 -->
       <section v-if="store.screenMode === 'roll_call'" class="mode-panel">
         <h2>📋 點名進行中</h2>
         <div class="roll-call-grid">
@@ -51,20 +51,36 @@
         </div>
       </section>
 
-      <!-- ✅ 2. 有主持核心磋商：只在該模式時顯示 -->
-      <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel">
-        <h2>🎤 有主持核心磋商</h2>
-        <div class="topic">主題：{{ store.modCaucusTopic || '未指定' }}</div>
-        <div class="timers">
-          <div class="timer-box"><span>總時長</span><div class="time">{{ formatTime(store.modCaucusTotalTimer) }}</div></div>
-          <div class="timer-box"><span>當前發言人</span><div class="speaker">{{ store.currentModSpeaker || '無' }}</div><div class="time">{{ formatTime(store.modCaucusSpeakerTimer) }}</div></div>
+      <!-- ✅ 有主持核心磋商：全新左右分割佈局 -->
+      <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel mod-panel-layout">
+        <!-- 上半部分：加大標題與主題 -->
+        <div class="mod-header-large">
+          <h2 class="mod-main-title">🎤 有主持核心磋商</h2>
+          <div class="mod-topic-large">主題：{{ store.modCaucusTopic || '未指定' }}</div>
+          <div class="mod-total-time-label">總時長</div>
+          <div class="mod-total-time-value">{{ formatTime(store.modCaucusTotalTimer) }}</div>
         </div>
-        <div class="mod-list-large">
-          <h3>發言順序</h3>
-          <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-large">
-            <span class="mod-number">{{ i + 1 }}</span><span class="mod-country">{{ spk.country }}</span>
+
+        <!-- 下半部分：左右分割 -->
+        <div class="mod-content-split">
+          <!-- 左側：當前發言人與倒計時 (大) -->
+          <div class="mod-left-panel">
+            <div class="mod-current-label">當前發言人</div>
+            <div class="mod-current-name">{{ store.currentModSpeaker || '無' }}</div>
+            <div class="mod-current-timer">{{ formatTime(store.modCaucusSpeakerTimer) }}</div>
           </div>
-          <div v-if="store.modCaucusList.length === 0" class="empty-large">暫無順序</div>
+
+          <!-- 右側：發言順序 (小) -->
+          <div class="mod-right-panel">
+            <h3 class="mod-list-header">發言順序</h3>
+            <div class="mod-list-container">
+              <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-small">
+                <span class="mod-num">{{ i + 1 }}</span>
+                <span class="mod-name">{{ spk.country }}</span>
+              </div>
+              <div v-if="store.modCaucusList.length === 0" class="mod-empty">暫無順序</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -135,13 +151,12 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .mode-panel { text-align: center; padding: 40px 0; }
 .timer-large { font-size: 5rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 20px 0; }
 
-/* ✅ 1. 恢復點名網格佈局 */
+/* 點名網格 */
 .roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-width: 1000px; margin: 20px auto; }
 .roll-call-item { background: #1e293b; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; font-size: 1.2rem; align-items: center; }
 .status.present { color: #4ade80; font-weight: bold; }
 .status.late { color: #fbbf24; font-weight: bold; }
 .status.absent { color: #f87171; font-weight: bold; }
-
 .roll-call-summary { margin-top: 30px; padding: 25px; background: #1e293b; border-radius: 12px; max-width: 900px; margin-left: auto; margin-right: auto; }
 .attendance-count { font-size: 2rem; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155; color: #4ade80; }
 .voting-thresholds { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
@@ -153,19 +168,34 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .motion-voting-panel { padding: 60px 20px; }
 .voting-title { font-size: 4rem; font-weight: 800; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
 .motion-detail-large { font-size: 2.2rem; line-height: 1.8; margin-bottom: 40px; }
-.motion-type, .motion-country, .motion-topic, .motion-duration { margin: 10px 0; }
 .next-motions { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; max-width: 700px; margin-left: auto; margin-right: auto; }
 .next-motions h3 { font-size: 1.5rem; color: #94a3b8; margin-bottom: 15px; }
 .queue-item { display: flex; gap: 15px; padding: 12px; border-bottom: 1px solid #334155; font-size: 1.4rem; }
 .q-num { color: #fbbf24; font-weight: bold; }
 
-/* 有主持核心磋商 */
-.mod-list-large { margin-top: 30px; padding: 30px; background: #1e293b; border-radius: 12px; max-width: 800px; margin-left: auto; margin-right: auto; }
-.mod-list-item-large { display: flex; align-items: center; gap: 20px; padding: 20px; margin-bottom: 12px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; font-weight: 700; }
-.mod-number { color: #fbbf24; min-width: 50px; }
-.empty-large { color: #64748b; font-size: 1.5rem; padding: 30px; text-align: center; }
+/* ✅ 有主持核心磋商 - 新佈局 */
+.mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
+.mod-header-large { margin-bottom: 30px; }
+.mod-main-title { font-size: 3rem; font-weight: 800; color: #e2e8f0; margin-bottom: 10px; }
+.mod-topic-large { font-size: 2rem; color: #94a3b8; margin-bottom: 15px; }
+.mod-total-time-label { font-size: 1.2rem; color: #64748b; }
+.mod-total-time-value { font-size: 3rem; font-family: monospace; color: #38bdf8; font-weight: bold; }
 
-/* 佈局 */
+.mod-content-split { display: flex; gap: 30px; flex: 1; min-height: 0; }
+.mod-left-panel { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1e293b; border-radius: 16px; padding: 40px; }
+.mod-current-label { font-size: 1.5rem; color: #94a3b8; margin-bottom: 10px; }
+.mod-current-name { font-size: 3.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; text-align: center; }
+.mod-current-timer { font-size: 6rem; font-family: monospace; font-weight: bold; color: #38bdf8; }
+
+.mod-right-panel { flex: 0.8; background: #1e293b; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
+.mod-list-header { font-size: 1.5rem; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
+.mod-list-container { overflow-y: auto; flex: 1; }
+.mod-list-item-small { display: flex; align-items: center; gap: 15px; padding: 15px; margin-bottom: 8px; background: #0f172a; border-radius: 8px; font-size: 1.5rem; }
+.mod-num { color: #fbbf24; font-weight: bold; min-width: 40px; }
+.mod-name { color: #e2e8f0; }
+.mod-empty { color: #64748b; font-size: 1.2rem; padding: 20px; text-align: center; }
+
+/* 預設佈局 */
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
 .right-split { display: flex; flex-direction: column; gap: 20px; }
 .card { background: #1e293b; padding: 25px; border-radius: 12px; }
