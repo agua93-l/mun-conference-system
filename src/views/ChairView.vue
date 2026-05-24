@@ -12,10 +12,12 @@
           <option value="議程 5">議程 5 (5/31 12:30~14:45)</option>
           <option value="議程 6">議程 6 (5/31 15:00~17:00)</option>
         </select>
+        
+        <!-- ✅ 3. 按鈕加上明確文字 -->
+        <button class="btn-open-screen" @click="openScreenView" title="開啟代表端新分頁">📺 開啟代表端</button>
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
-        <button class="btn-reject-next" @click="store.rejectMotion()" title="駁回當前動議，自動跳至下一筆排序動議"></button>
-        <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商"></button>
+        <button class="btn-return-debate" @click="store.returnToDebate()" title="返回正式辯論並清零有主持核心磋商">✅ 返回辯論</button>
         <button class="btn-logout" @click="handleLogout">🚪 登出</button>
       </div>
     </header>
@@ -315,4 +317,8 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-clear-mod { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 10px; }
 .btn-reject-next { background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
 .btn-reject-next:hover { background: #f57c00; }
+.btn-open-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-open-screen:hover { background: #1976d2; }
+.btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-return-debate:hover { background: #00838f; }
 </style>

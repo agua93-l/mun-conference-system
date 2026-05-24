@@ -26,6 +26,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const rollCallStatus = reactive({})
   const isRollCallActive = ref(false)
   const rollCallFinished = ref(false)
+  // ✅ 4. 門檻只計算理事國 (member)
   const rollCallThresholds = reactive({ present: 0, simple: 0, twoThirds: 0, oneFifth: 0 })
   const generalTimeLimit = ref(60)
   const generalList = ref([])
@@ -61,16 +62,17 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // ✅ 動態計算投票門檻（基於當前出席人數）
+  // ✅ 4. 動態計算門檻（只算理事國 member）
   const recalcThresholds = () => {
-    const presentCount = Object.values(rollCallStatus).filter(s => s === 'present').length
+    const memberDelegates = delegates.filter(d => d.type === 'member')
+    const presentCount = memberDelegates.filter(d => rollCallStatus[d.name] === 'present').length
     rollCallThresholds.present = presentCount
     rollCallThresholds.simple = Math.floor(presentCount / 2) + 1
     rollCallThresholds.twoThirds = Math.ceil(presentCount * 2 / 3)
     rollCallThresholds.oneFifth = Math.ceil(presentCount / 5)
   }
 
-  // ✅ 動議排序邏輯
+  // ✅ 5. 動議排序邏輯
   const sortMotionQueue = () => {
     const priorityMap = {
       '終止會議': 1, '暫停會議': 2, '自由磋商': 3, '全體諮詢': 3,
@@ -79,16 +81,16 @@ export const useConferenceStore = defineStore('conference', () => {
     motionQueue.value.sort((a, b) => {
       const pA = priorityMap[a.type] || 99
       const pB = priorityMap[b.type] || 99
-      if (pA !== pB) return pA - pB // 1. 議事規則排序
+      if (pA !== pB) return pA - pB
       const durA = (a.details.totalTime || a.details.duration || 0) * 60
       const durB = (b.details.totalTime || b.details.duration || 0) * 60
-      if (durA !== durB) return durB - durA // 2. 總時長長的在前
+      if (durA !== durB) return durB - durA
       if (a.type === '有主持核心磋商' && b.type === '有主持核心磋商') {
         const sA = durA / ((a.details.speakTime || 60))
         const sB = durB / ((b.details.speakTime || 60))
-        if (sA !== sB) return sB - sA // 3. 代表數多的在前
+        if (sA !== sB) return sB - sA
       }
-      return (a.id || 0) - (b.id || 0) // 4. 先後順序
+      return (a.id || 0) - (b.id || 0)
     })
   }
 
@@ -103,7 +105,7 @@ export const useConferenceStore = defineStore('conference', () => {
       if (d.rollCallStatus) Object.assign(rollCallStatus, d.rollCallStatus)
       isRollCallActive.value = !!d.isRollCallActive
       rollCallFinished.value = !!d.rollCallFinished
-      recalcThresholds() // ✅ 同步後重新計算門檻
+      recalcThresholds()
       generalTimeLimit.value = d.generalTimeLimit ?? 60
       generalList.value = d.generalList || []
       currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
@@ -112,7 +114,7 @@ export const useConferenceStore = defineStore('conference', () => {
       
       motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
       currentVotingMotion.value = d.currentVotingMotion || null
-      sortMotionQueue() // ✅ 確保佇列有序
+      sortMotionQueue()
 
       Object.keys(d.stats || {}).forEach(key => {
         if (!stats[key]) stats[key] = { speeches: 0, motions: {} }
@@ -162,12 +164,18 @@ export const useConferenceStore = defineStore('conference', () => {
 
   function setSection(s) { currentSection.value = s; sync() }
   function startRollCall() {
-    delegates.forEach(d => { if (!rollCallStatus[d.name]) rollCallStatus[d.name] = '' })
+    // ✅ 1. 保留觀察員狀態，只重置理事國
+    delegates.forEach(d => {
+      if (d.type === 'member' && (!rollCallStatus[d.name] || rollCallFinished.value)) {
+        rollCallStatus[d.name] = ''
+      }
+    })
     isRollCallActive.value = true; rollCallFinished.value = false; screenMode.value = 'roll_call'; sync()
   }
   function markRollCall(country, status) {
     rollCallStatus[country] = status
-    if (delegates.every(d => rollCallStatus[d.name]) && !rollCallFinished.value) rollCallFinished.value = true
+    const members = delegates.filter(d => d.type === 'member')
+    if (members.every(d => rollCallStatus[d.name]) && !rollCallFinished.value) rollCallFinished.value = true
     sync()
   }
   function changeToLate(country) {
@@ -233,7 +241,6 @@ export const useConferenceStore = defineStore('conference', () => {
     currentVotingMotion.value = motionQueue.value[i]; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
   }
   function rejectMotion() {
-    // ✅ 駁回後自動跳下一筆已排序的動議
     currentVotingMotion.value = null
     if (motionQueue.value.length > 0) {
       sortMotionQueue()
@@ -260,7 +267,10 @@ export const useConferenceStore = defineStore('conference', () => {
       screenMode.value='p5_closed'; meetingPhase.value='P5閉門協商'; p5Timer.value=600; sync()
       p5Interval=setInterval(()=>{ if(p5Interval&&p5Timer.value>0){p5Timer.value--;sync()} else{clearInterval(p5Interval);screenMode.value='default';meetingPhase.value='正式辯論';sync()} },1000)
     }
-    currentVotingMotion.value = null; sync()
+    currentVotingMotion.value = null
+    // ✅ 5. 動議通過後清空所有待決動議
+    motionQueue.value = []
+    sync()
   }
   function nextModSpeaker() {
     if (modCaucusList.value.length===0) return

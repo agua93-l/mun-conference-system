@@ -10,7 +10,7 @@
     </header>
 
     <main class="screen-content">
-      <!-- 點名模式 -->
+      <!-- ✅ 1. 點名模式：恢復網格佈局 -->
       <section v-if="store.screenMode === 'roll_call'" class="mode-panel">
         <h2>📋 點名進行中</h2>
         <div class="roll-call-grid">
@@ -23,7 +23,7 @@
         </div>
         <div v-if="store.rollCallFinished" class="roll-call-summary">
           <div class="attendance-count">
-            <strong>✅ 出席人數：{{ store.rollCallThresholds.present }} 人</strong>
+            <strong>✅ 出席理事國：{{ store.rollCallThresholds.present }} 席</strong>
           </div>
           <div class="voting-thresholds">
             <div class="threshold-item"><span>✓ 簡單多數</span><strong>{{ store.rollCallThresholds.simple }}</strong></div>
@@ -33,7 +33,7 @@
         </div>
       </section>
 
-      <!-- 動議表決模式 (✅ 字體加大) -->
+      <!-- 動議表決模式 -->
       <section v-else-if="store.screenMode === 'motion_voting' && store.currentVotingMotion" class="mode-panel motion-voting-panel">
         <h2 class="voting-title">🗳️ 動議表決</h2>
         <div class="motion-detail-large">
@@ -42,7 +42,6 @@
           <p v-if="store.currentVotingMotion.details.topic" class="motion-topic">主題：{{ store.currentVotingMotion.details.topic }}</p>
           <p v-if="store.currentVotingMotion.details.totalTime" class="motion-duration">總時長：{{ store.currentVotingMotion.details.totalTime }} 分鐘</p>
         </div>
-        <!-- ✅ 顯示後續動議清單 -->
         <div v-if="store.motionQueue.length > 0" class="next-motions">
           <h3>📜 待決動議清單</h3>
           <div v-for="(m, i) in store.motionQueue" :key="m.id" class="queue-item">
@@ -52,7 +51,7 @@
         </div>
       </section>
 
-      <!-- 有主持核心磋商 -->
+      <!-- ✅ 2. 有主持核心磋商：只在該模式時顯示 -->
       <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel">
         <h2>🎤 有主持核心磋商</h2>
         <div class="topic">主題：{{ store.modCaucusTopic || '未指定' }}</div>
@@ -69,7 +68,7 @@
         </div>
       </section>
 
-      <!-- 其他模式 (caucus, p5_closed, suspended 等保持原樣略) -->
+      <!-- 其他模式 -->
       <section v-else-if="store.screenMode === 'caucus'" class="mode-panel"><h2>{{ store.meetingPhase }}</h2><div class="timer-large">{{ formatTime(store.caucusTotalTimer) }}</div></section>
       <section v-else-if="store.screenMode === 'p5_closed'" class="mode-panel"><h2>🔒 P5 閉門協商</h2><div class="timer-large">{{ formatTime(store.p5Timer) }}</div></section>
       <section v-else-if="store.screenMode === 'suspended'" class="mode-panel"><h2>⏸️ 會議暫停</h2></section>
@@ -89,7 +88,7 @@
             <div class="card roll-call-card">
               <h3>📊 點名統計與投票門檻</h3>
               <div class="roll-call-brief">
-                <div class="brief-item"><span class="brief-label">出席</span><span class="brief-value present">{{ store.rollCallThresholds.present }}</span></div>
+                <div class="brief-item"><span class="brief-label">出席理事國</span><span class="brief-value present">{{ store.rollCallThresholds.present }}</span></div>
                 <div class="brief-item"><span class="brief-label">遲到</span><span class="brief-value late">{{ Object.values(store.rollCallStatus).filter(s => s === 'late').length }}</span></div>
                 <div class="brief-item"><span class="brief-label">缺席</span><span class="brief-value absent">{{ Object.values(store.rollCallStatus).filter(s => s === 'absent').length }}</span></div>
               </div>
@@ -125,7 +124,6 @@ onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
 </script>
 
 <style scoped>
-/* 保持原有樣式，僅新增/修改以下關鍵區塊 */
 .screen-container { min-height: 100vh; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
 .screen-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
 h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; }
@@ -137,24 +135,13 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .mode-panel { text-align: center; padding: 40px 0; }
 .timer-large { font-size: 5rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 20px 0; }
 
-/* ✅ 動議表決超大字體 */
-.motion-voting-panel { padding: 60px 20px; }
-.voting-title { font-size: 4rem; font-weight: 800; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
-.motion-detail-large { font-size: 2.2rem; line-height: 1.8; margin-bottom: 40px; }
-.motion-type, .motion-country, .motion-topic, .motion-duration { margin: 10px 0; }
+/* ✅ 1. 恢復點名網格佈局 */
+.roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-width: 1000px; margin: 20px auto; }
+.roll-call-item { background: #1e293b; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; font-size: 1.2rem; align-items: center; }
+.status.present { color: #4ade80; font-weight: bold; }
+.status.late { color: #fbbf24; font-weight: bold; }
+.status.absent { color: #f87171; font-weight: bold; }
 
-.next-motions { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; max-width: 700px; margin-left: auto; margin-right: auto; }
-.next-motions h3 { font-size: 1.5rem; color: #94a3b8; margin-bottom: 15px; }
-.queue-item { display: flex; gap: 15px; padding: 12px; border-bottom: 1px solid #334155; font-size: 1.4rem; }
-.q-num { color: #fbbf24; font-weight: bold; }
-
-/* 有主持核心磋商超大字體 */
-.mod-list-large { margin-top: 30px; padding: 30px; background: #1e293b; border-radius: 12px; max-width: 800px; margin-left: auto; margin-right: auto; }
-.mod-list-item-large { display: flex; align-items: center; gap: 20px; padding: 20px; margin-bottom: 12px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; font-weight: 700; }
-.mod-number { color: #fbbf24; min-width: 50px; }
-.empty-large { color: #64748b; font-size: 1.5rem; padding: 30px; text-align: center; }
-
-/* 點名統計 */
 .roll-call-summary { margin-top: 30px; padding: 25px; background: #1e293b; border-radius: 12px; max-width: 900px; margin-left: auto; margin-right: auto; }
 .attendance-count { font-size: 2rem; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155; color: #4ade80; }
 .voting-thresholds { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
@@ -162,7 +149,23 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .threshold-item span { font-size: 1.1rem; color: #94a3b8; margin-bottom: 8px; }
 .threshold-item strong { font-size: 2.2rem; color: #fbbf24; }
 
-/* 其他佈局樣式保持不變... */
+/* 動議表決 */
+.motion-voting-panel { padding: 60px 20px; }
+.voting-title { font-size: 4rem; font-weight: 800; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
+.motion-detail-large { font-size: 2.2rem; line-height: 1.8; margin-bottom: 40px; }
+.motion-type, .motion-country, .motion-topic, .motion-duration { margin: 10px 0; }
+.next-motions { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; max-width: 700px; margin-left: auto; margin-right: auto; }
+.next-motions h3 { font-size: 1.5rem; color: #94a3b8; margin-bottom: 15px; }
+.queue-item { display: flex; gap: 15px; padding: 12px; border-bottom: 1px solid #334155; font-size: 1.4rem; }
+.q-num { color: #fbbf24; font-weight: bold; }
+
+/* 有主持核心磋商 */
+.mod-list-large { margin-top: 30px; padding: 30px; background: #1e293b; border-radius: 12px; max-width: 800px; margin-left: auto; margin-right: auto; }
+.mod-list-item-large { display: flex; align-items: center; gap: 20px; padding: 20px; margin-bottom: 12px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; font-weight: 700; }
+.mod-number { color: #fbbf24; min-width: 50px; }
+.empty-large { color: #64748b; font-size: 1.5rem; padding: 30px; text-align: center; }
+
+/* 佈局 */
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
 .right-split { display: flex; flex-direction: column; gap: 20px; }
 .card { background: #1e293b; padding: 25px; border-radius: 12px; }
