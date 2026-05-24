@@ -33,9 +33,10 @@
         </div>
       </section>
 
-      <!-- ✅ 1. 唱名投票模式 (第一輪) -->
+      <!-- ✅ 唱名投票模式 (第一輪) -->
       <section v-else-if="store.screenMode === 'voting_roll_call' && !store.votingRound2" class="mode-panel voting-panel">
         <h2 class="voting-title">🗳️ 唱名表決</h2>
+        <!-- ✅ 修復：加入 ?. 確保不報錯 -->
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
         <div class="voting-round-label">第一輪</div>
         <div class="voting-stats-grid">
@@ -66,7 +67,7 @@
         </div>
       </section>
 
-      <!-- ✅ 1. 唱名投票模式 (第二輪) -->
+      <!-- ✅ 唱名投票模式 (第二輪) -->
       <section v-else-if="store.screenMode === 'voting_roll_call' && store.votingRound2" class="mode-panel voting-panel">
         <h2 class="voting-title">🗳️ 唱名表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
@@ -83,7 +84,7 @@
         </div>
       </section>
 
-      <!-- ✅ 1. 共識決投票 -->
+      <!-- ✅ 共識決投票 -->
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
@@ -112,8 +113,9 @@
         <div class="motion-detail-large">
           <p class="motion-type">類型：{{ store.currentVotingMotion.type }}</p>
           <p class="motion-country">動議國：{{ store.currentVotingMotion.country }}</p>
-          <p v-if="store.currentVotingMotion.details.topic" class="motion-topic">主題：{{ store.currentVotingMotion.details.topic }}</p>
-          <p v-if="store.currentVotingMotion.details.totalTime" class="motion-duration">總時長：{{ store.currentVotingMotion.details.totalTime }} 分鐘</p>
+          <!-- ✅ 修復：加入 ?. -->
+          <p v-if="store.currentVotingMotion?.details?.topic" class="motion-topic">主題：{{ store.currentVotingMotion.details.topic }}</p>
+          <p v-if="store.currentVotingMotion?.details?.totalTime" class="motion-duration">總時長：{{ store.currentVotingMotion.details.totalTime }} 分鐘</p>
         </div>
         <div v-if="store.motionQueue.length > 0" class="next-motions">
           <h3>📜 待決動議清單</h3>
@@ -124,7 +126,7 @@
         </div>
       </section>
 
-      <!-- ✅ 有主持核心磋商：字體調整 -->
+      <!-- 有主持核心磋商 -->
       <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel mod-panel-layout">
         <div class="mod-header-large">
           <h2 class="mod-main-title">🎤 有主持核心磋商</h2>
@@ -133,13 +135,13 @@
           <div class="mod-total-time-value">{{ formatTime(store.modCaucusTotalTimer) }}</div>
         </div>
         <div class="mod-content-split">
-          <!-- 左側：當前發言人居頂端，倒計時小一點 -->
+          <!-- 左側：當前發言人置於頂端，倒計時縮小 -->
           <div class="mod-left-panel">
             <div class="mod-current-label-top">當前發言人</div>
             <div class="mod-current-name">{{ store.currentModSpeaker || '無' }}</div>
             <div class="mod-current-timer-small">{{ formatTime(store.modCaucusSpeakerTimer) }}</div>
           </div>
-          <!-- 右側：發言順序再大兩號字 -->
+          <!-- 右側：發言順序加大 -->
           <div class="mod-right-panel">
             <h3 class="mod-list-header">發言順序</h3>
             <div class="mod-list-container">
@@ -153,7 +155,7 @@
         </div>
       </section>
 
-      <!-- ✅ 4. 自由磋商/全體諮詢：字體更大 -->
+      <!-- 自由磋商/全體諮詢 -->
       <section v-else-if="store.screenMode === 'caucus'" class="mode-panel caucus-panel">
         <h2 class="caucus-title">{{ store.meetingPhase }}</h2>
         <div class="timer-large caucus-timer">{{ formatTime(store.caucusTotalTimer) }}</div>
@@ -162,7 +164,7 @@
       <!-- P5閉門 -->
       <section v-else-if="store.screenMode === 'p5_closed'" class="mode-panel"><h2>🔒 P5 閉門協商</h2><div class="timer-large">{{ formatTime(store.p5Timer) }}</div></section>
 
-      <!-- ✅ 3. 會議暫停：置中且更大 -->
+      <!-- 會議暫停 -->
       <section v-else-if="store.screenMode === 'suspended'" class="mode-panel suspended-panel">
         <div class="suspended-content">
           <h2 class="suspended-title">⏸️ 會議暫停</h2>
@@ -244,7 +246,7 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .threshold-item span { font-size: 1.1rem; color: #94a3b8; margin-bottom: 8px; }
 .threshold-item strong { font-size: 2.2rem; color: #fbbf24; }
 
-/* ✅ 1. 唱名投票/共識決投票 */
+/* ✅ 唱名投票/共識決投票 */
 .voting-panel { padding: 40px 20px; }
 .voting-title { font-size: 3.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; }
 .voting-topic { font-size: 1.8rem; color: #94a3b8; margin-bottom: 30px; }
@@ -284,7 +286,6 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .mod-right-panel { flex: 0.8; background: #1e293b; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
 .mod-list-header { font-size: 1.5rem; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
 .mod-list-container { overflow-y: auto; flex: 1; }
-/* ✅ 發言順序再大兩號字 (原 1.5rem → 2.5rem) */
 .mod-list-item-xl { display: flex; align-items: center; gap: 15px; padding: 20px; margin-bottom: 10px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; }
 .mod-num { color: #fbbf24; font-weight: bold; min-width: 50px; }
 .mod-name { color: #e2e8f0; }

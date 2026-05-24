@@ -35,7 +35,6 @@ export const useConferenceStore = defineStore('conference', () => {
   const motionQueue = ref([])
   const currentVotingMotion = ref(null)
   
-  // ✅ 新增：投票狀態
   const votingRound2 = ref(false)
   const votingYes = ref(0)
   const votingNo = ref(0)
@@ -121,10 +120,13 @@ export const useConferenceStore = defineStore('conference', () => {
       isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
       
       motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
-      currentVotingMotion.value = d.currentVotingMotion || null
+      
+      // ✅ 修復：確保 currentVotingMotion 永遠有 details 屬性
+      const rawMotion = d.currentVotingMotion || null
+      currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
+      
       sortMotionQueue()
 
-      // ✅ 同步投票狀態
       votingRound2.value = !!d.votingRound2
       votingYes.value = d.votingYes ?? 0
       votingNo.value = d.votingNo ?? 0
@@ -170,7 +172,6 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value,
-      // ✅ 同步投票狀態
       votingRound2: votingRound2.value, votingYes: votingYes.value, votingNo: votingNo.value,
       votingYesSpeak: votingYesSpeak.value, votingNoSpeak: votingNoSpeak.value,
       votingAbstain: votingAbstain.value, votingSkip: votingSkip.value
@@ -197,7 +198,6 @@ export const useConferenceStore = defineStore('conference', () => {
   function changeToLate(country) { if (rollCallStatus[country] === 'present') { rollCallStatus[country] = 'late'; sync() } }
   function endRollCall() { isRollCallActive.value = false; screenMode.value = 'default'; sync() }
 
-  // ✅ 新增：唱名投票控制
   function startVotingRollCall() {
     votingRound2.value = false
     votingYes.value = 0; votingNo.value = 0
@@ -212,7 +212,6 @@ export const useConferenceStore = defineStore('conference', () => {
     sync()
   }
   function recordVote(country, voteType) {
-    // voteType: 'yes', 'yes_speak', 'no', 'no_speak', 'abstain', 'skip'
     if (voteType === 'yes') votingYes.value++
     else if (voteType === 'yes_speak') votingYesSpeak.value++
     else if (voteType === 'no') votingNo.value++
@@ -229,7 +228,6 @@ export const useConferenceStore = defineStore('conference', () => {
     sync()
   }
 
-  // ✅ 新增：共識決投票控制
   function startVotingConsensus() {
     votingYes.value = 0; votingNo.value = 0; votingAbstain.value = 0
     screenMode.value = 'voting_consensus'
