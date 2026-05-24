@@ -33,6 +33,79 @@
         </div>
       </section>
 
+      <!-- ✅ 1. 唱名投票模式 (第一輪) -->
+      <section v-else-if="store.screenMode === 'voting_roll_call' && !store.votingRound2" class="mode-panel voting-panel">
+        <h2 class="voting-title">🗳️ 唱名表決</h2>
+        <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
+        <div class="voting-round-label">第一輪</div>
+        <div class="voting-stats-grid">
+          <div class="voting-stat-card present">
+            <div class="voting-label">✅ 贊成</div>
+            <div class="voting-count">{{ store.votingYes }}</div>
+          </div>
+          <div class="voting-stat-card present-speak">
+            <div class="voting-label">✅ 贊成並發言</div>
+            <div class="voting-count">{{ store.votingYesSpeak }}</div>
+          </div>
+          <div class="voting-stat-card oppose">
+            <div class="voting-label">❌ 反對</div>
+            <div class="voting-count">{{ store.votingNo }}</div>
+          </div>
+          <div class="voting-stat-card oppose-speak">
+            <div class="voting-label">❌ 反對並發言</div>
+            <div class="voting-count">{{ store.votingNoSpeak }}</div>
+          </div>
+          <div class="voting-stat-card abstain">
+            <div class="voting-label">⚪ 棄權</div>
+            <div class="voting-count">{{ store.votingAbstain }}</div>
+          </div>
+          <div class="voting-stat-card skip">
+            <div class="voting-label">⏭️ 跳過</div>
+            <div class="voting-count">{{ store.votingSkip }}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ✅ 1. 唱名投票模式 (第二輪) -->
+      <section v-else-if="store.screenMode === 'voting_roll_call' && store.votingRound2" class="mode-panel voting-panel">
+        <h2 class="voting-title">🗳️ 唱名表決</h2>
+        <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
+        <div class="voting-round-label">第二輪</div>
+        <div class="voting-stats-grid two-col">
+          <div class="voting-stat-card present">
+            <div class="voting-label">✅ 贊成</div>
+            <div class="voting-count">{{ store.votingYes }}</div>
+          </div>
+          <div class="voting-stat-card oppose">
+            <div class="voting-label">❌ 反對</div>
+            <div class="voting-count">{{ store.votingNo }}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ✅ 1. 共識決投票 -->
+      <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
+        <h2 class="voting-title">🤝 共識決表決</h2>
+        <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
+        <div class="consensus-display">
+          <div class="consensus-item">
+            <span class="consensus-icon">✅</span>
+            <span class="consensus-label">贊成</span>
+            <span class="consensus-value">{{ store.votingYes }}</span>
+          </div>
+          <div class="consensus-item">
+            <span class="consensus-icon">⚪</span>
+            <span class="consensus-label">棄權</span>
+            <span class="consensus-value">{{ store.votingAbstain }}</span>
+          </div>
+          <div class="consensus-item">
+            <span class="consensus-icon">❌</span>
+            <span class="consensus-label">反對</span>
+            <span class="consensus-value">{{ store.votingNo }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- 動議表決模式 -->
       <section v-else-if="store.screenMode === 'motion_voting' && store.currentVotingMotion" class="mode-panel motion-voting-panel">
         <h2 class="voting-title">🗳️ 動議表決</h2>
@@ -51,30 +124,26 @@
         </div>
       </section>
 
-      <!-- ✅ 有主持核心磋商：全新左右分割佈局 -->
+      <!-- ✅ 有主持核心磋商：字體調整 -->
       <section v-else-if="store.screenMode === 'mod_caucus'" class="mode-panel mod-panel-layout">
-        <!-- 上半部分：加大標題與主題 -->
         <div class="mod-header-large">
           <h2 class="mod-main-title">🎤 有主持核心磋商</h2>
           <div class="mod-topic-large">主題：{{ store.modCaucusTopic || '未指定' }}</div>
           <div class="mod-total-time-label">總時長</div>
           <div class="mod-total-time-value">{{ formatTime(store.modCaucusTotalTimer) }}</div>
         </div>
-
-        <!-- 下半部分：左右分割 -->
         <div class="mod-content-split">
-          <!-- 左側：當前發言人與倒計時 (大) -->
+          <!-- 左側：當前發言人居頂端，倒計時小一點 -->
           <div class="mod-left-panel">
-            <div class="mod-current-label">當前發言人</div>
+            <div class="mod-current-label-top">當前發言人</div>
             <div class="mod-current-name">{{ store.currentModSpeaker || '無' }}</div>
-            <div class="mod-current-timer">{{ formatTime(store.modCaucusSpeakerTimer) }}</div>
+            <div class="mod-current-timer-small">{{ formatTime(store.modCaucusSpeakerTimer) }}</div>
           </div>
-
-          <!-- 右側：發言順序 (小) -->
+          <!-- 右側：發言順序再大兩號字 -->
           <div class="mod-right-panel">
             <h3 class="mod-list-header">發言順序</h3>
             <div class="mod-list-container">
-              <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-small">
+              <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-xl">
                 <span class="mod-num">{{ i + 1 }}</span>
                 <span class="mod-name">{{ spk.country }}</span>
               </div>
@@ -84,10 +153,21 @@
         </div>
       </section>
 
-      <!-- 其他模式 -->
-      <section v-else-if="store.screenMode === 'caucus'" class="mode-panel"><h2>{{ store.meetingPhase }}</h2><div class="timer-large">{{ formatTime(store.caucusTotalTimer) }}</div></section>
+      <!-- ✅ 4. 自由磋商/全體諮詢：字體更大 -->
+      <section v-else-if="store.screenMode === 'caucus'" class="mode-panel caucus-panel">
+        <h2 class="caucus-title">{{ store.meetingPhase }}</h2>
+        <div class="timer-large caucus-timer">{{ formatTime(store.caucusTotalTimer) }}</div>
+      </section>
+
+      <!-- P5閉門 -->
       <section v-else-if="store.screenMode === 'p5_closed'" class="mode-panel"><h2>🔒 P5 閉門協商</h2><div class="timer-large">{{ formatTime(store.p5Timer) }}</div></section>
-      <section v-else-if="store.screenMode === 'suspended'" class="mode-panel"><h2>⏸️ 會議暫停</h2></section>
+
+      <!-- ✅ 3. 會議暫停：置中且更大 -->
+      <section v-else-if="store.screenMode === 'suspended'" class="mode-panel suspended-panel">
+        <div class="suspended-content">
+          <h2 class="suspended-title">⏸️ 會議暫停</h2>
+        </div>
+      </section>
 
       <!-- 預設模式 -->
       <section v-else class="default-panel">
@@ -164,16 +244,30 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .threshold-item span { font-size: 1.1rem; color: #94a3b8; margin-bottom: 8px; }
 .threshold-item strong { font-size: 2.2rem; color: #fbbf24; }
 
-/* 動議表決 */
-.motion-voting-panel { padding: 60px 20px; }
-.voting-title { font-size: 4rem; font-weight: 800; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
-.motion-detail-large { font-size: 2.2rem; line-height: 1.8; margin-bottom: 40px; }
-.next-motions { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; max-width: 700px; margin-left: auto; margin-right: auto; }
-.next-motions h3 { font-size: 1.5rem; color: #94a3b8; margin-bottom: 15px; }
-.queue-item { display: flex; gap: 15px; padding: 12px; border-bottom: 1px solid #334155; font-size: 1.4rem; }
-.q-num { color: #fbbf24; font-weight: bold; }
+/* ✅ 1. 唱名投票/共識決投票 */
+.voting-panel { padding: 40px 20px; }
+.voting-title { font-size: 3.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; }
+.voting-topic { font-size: 1.8rem; color: #94a3b8; margin-bottom: 30px; }
+.voting-round-label { font-size: 1.5rem; color: #38bdf8; margin-bottom: 30px; font-weight: 600; }
+.voting-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+.voting-stats-grid.two-col { max-width: 600px; }
+.voting-stat-card { background: #1e293b; padding: 30px 20px; border-radius: 12px; border-top: 4px solid #334155; }
+.voting-stat-card.present { border-top-color: #4ade80; }
+.voting-stat-card.present-speak { border-top-color: #86efac; }
+.voting-stat-card.oppose { border-top-color: #f87171; }
+.voting-stat-card.oppose-speak { border-top-color: #fca5a5; }
+.voting-stat-card.abstain { border-top-color: #94a3b8; }
+.voting-stat-card.skip { border-top-color: #64748b; }
+.voting-label { font-size: 1.3rem; color: #cbd5e1; margin-bottom: 10px; }
+.voting-count { font-size: 4rem; font-weight: 800; color: #f8fafc; }
 
-/* ✅ 有主持核心磋商 - 新佈局 */
+.consensus-display { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
+.consensus-item { display: flex; flex-direction: column; align-items: center; gap: 10px; background: #1e293b; padding: 30px 40px; border-radius: 12px; min-width: 200px; }
+.consensus-icon { font-size: 3rem; }
+.consensus-label { font-size: 1.5rem; color: #94a3b8; }
+.consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
+
+/* ✅ 有主持核心磋商：字體調整 */
 .mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
 .mod-header-large { margin-bottom: 30px; }
 .mod-main-title { font-size: 3rem; font-weight: 800; color: #e2e8f0; margin-bottom: 10px; }
@@ -182,18 +276,38 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .mod-total-time-value { font-size: 3rem; font-family: monospace; color: #38bdf8; font-weight: bold; }
 
 .mod-content-split { display: flex; gap: 30px; flex: 1; min-height: 0; }
-.mod-left-panel { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1e293b; border-radius: 16px; padding: 40px; }
-.mod-current-label { font-size: 1.5rem; color: #94a3b8; margin-bottom: 10px; }
-.mod-current-name { font-size: 3.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; text-align: center; }
-.mod-current-timer { font-size: 6rem; font-family: monospace; font-weight: bold; color: #38bdf8; }
+.mod-left-panel { flex: 1; display: flex; flex-direction: column; align-items: center; background: #1e293b; border-radius: 16px; padding: 30px 40px; position: relative; }
+.mod-current-label-top { font-size: 1.8rem; color: #94a3b8; margin-bottom: 10px; align-self: flex-start; }
+.mod-current-name { font-size: 3rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; text-align: center; width: 100%; }
+.mod-current-timer-small { font-size: 3.5rem; font-family: monospace; font-weight: bold; color: #38bdf8; }
 
 .mod-right-panel { flex: 0.8; background: #1e293b; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
 .mod-list-header { font-size: 1.5rem; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
 .mod-list-container { overflow-y: auto; flex: 1; }
-.mod-list-item-small { display: flex; align-items: center; gap: 15px; padding: 15px; margin-bottom: 8px; background: #0f172a; border-radius: 8px; font-size: 1.5rem; }
-.mod-num { color: #fbbf24; font-weight: bold; min-width: 40px; }
+/* ✅ 發言順序再大兩號字 (原 1.5rem → 2.5rem) */
+.mod-list-item-xl { display: flex; align-items: center; gap: 15px; padding: 20px; margin-bottom: 10px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; }
+.mod-num { color: #fbbf24; font-weight: bold; min-width: 50px; }
 .mod-name { color: #e2e8f0; }
 .mod-empty { color: #64748b; font-size: 1.2rem; padding: 20px; text-align: center; }
+
+/* ✅ 4. 自由磋商/全體諮詢：字體更大 */
+.caucus-panel { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 60vh; }
+.caucus-title { font-size: 3.5rem; font-weight: 800; color: #e2e8f0; margin-bottom: 30px; }
+.caucus-timer { font-size: 8rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 0; }
+
+/* ✅ 3. 會議暫停：置中且更大 */
+.suspended-panel { display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+.suspended-content { text-align: center; }
+.suspended-title { font-size: 6rem; font-weight: 900; color: #f8fafc; letter-spacing: 4px; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
+
+/* 動議表決 */
+.motion-voting-panel { padding: 60px 20px; }
+.voting-title { font-size: 4rem; font-weight: 800; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
+.motion-detail-large { font-size: 2.2rem; line-height: 1.8; margin-bottom: 40px; }
+.next-motions { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; max-width: 700px; margin-left: auto; margin-right: auto; }
+.next-motions h3 { font-size: 1.5rem; color: #94a3b8; margin-bottom: 15px; }
+.queue-item { display: flex; gap: 15px; padding: 12px; border-bottom: 1px solid #334155; font-size: 1.4rem; }
+.q-num { color: #fbbf24; font-weight: bold; }
 
 /* 預設佈局 */
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
