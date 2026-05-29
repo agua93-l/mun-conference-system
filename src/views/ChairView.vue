@@ -230,16 +230,32 @@ function openScreenView() {
 }
 
 // ✅ 清除統計資料
+// ✅ 清除統計資料
 async function clearStats() {
   if (!confirm('⚠️ 確定要清除所有國家的統計資料嗎？此操作無法復原！')) return
+  
   try {
+    if (!window.firebase || !window.firebase.dbMethods) {
+      alert('❌ Firebase 尚未載入，請稍後再試')
+      return
+    }
+    
     const { db, dbMethods } = window.firebase
     const statsRef = dbMethods.ref(db, 'mun_state/stats')
-    await dbMethods.set(statsRef, {})
+    
+    // ✅ 使用 set 寫入空物件
+    await dbMethods.set(statsRef, null)
+    
+    // ✅ 強制同步
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
     alert('✅ 統計資料已清除')
+    
+    // ✅ 重新載入頁面確保同步
+    window.location.reload()
   } catch (err) {
     console.error('清除統計失敗:', err)
-    alert('❌ 清除失敗，請檢查 Console')
+    alert('❌ 清除失敗: ' + err.message)
   }
 }
 
