@@ -11,7 +11,7 @@ const ensureFB = () => {
   if (!fb || !fb.db || !fb.dbMethods) return false
   dbRefFn = fb.dbMethods.ref
   setFn = fb.dbMethods.set
-  onValueFn = fb.dbMethods.onValue
+  onValueFn = fbMethods.onValue
   stateRef = dbRefFn(fb.db, 'mun_state')
   fbReady = true
   return true
@@ -35,10 +35,9 @@ export const useConferenceStore = defineStore('conference', () => {
   const motionQueue = ref([])
   const currentVotingMotion = ref(null)
   
-  // ✅ 唱名表決狀態
   const rollCallVoteData = reactive({}) 
-  const rollCallVoteStatus = ref('voting') // 'voting' | 'finished'
-  const votingRound2 = ref(false) // false=第一輪, true=第二輪
+  const rollCallVoteStatus = ref('voting')
+  const votingRound2 = ref(false)
   
   const stats = reactive({})
   const documents = ref([])
@@ -98,7 +97,6 @@ export const useConferenceStore = defineStore('conference', () => {
     })
   }
 
-  // ✅ 計算贊成/反對總數 (發言票直接合併計算)
   const voteCounts = computed(() => {
     let yes = 0, no = 0, abstain = 0
     Object.values(rollCallVoteData).forEach(v => {
@@ -109,7 +107,6 @@ export const useConferenceStore = defineStore('conference', () => {
     return { yes, no, abstain }
   })
 
-  // ✅ 判斷是否通過：贊成>=9 且 無五常反對
   const passedVote = computed(() => {
     const p5Veto = delegates.some(d => d.p5 && (rollCallVoteData[d.name] === 'no' || rollCallVoteData[d.name] === 'no_speak'))
     return !p5Veto && voteCounts.value.yes >= 9
@@ -200,7 +197,6 @@ export const useConferenceStore = defineStore('conference', () => {
   function changeToLate(country) { if (rollCallStatus[country] === 'present') { rollCallStatus[country] = 'late'; sync() } }
   function endRollCall() { isRollCallActive.value = false; screenMode.value = 'default'; sync() }
 
-  // ✅ 開始唱名表決
   function startVotingRollCall() {
     rollCallVoteStatus.value = 'voting'
     votingRound2.value = false
@@ -209,19 +205,16 @@ export const useConferenceStore = defineStore('conference', () => {
     sync()
   }
   
-  // ✅ 記錄投票
   function recordRollCallVote(country, voteType) {
     rollCallVoteData[country] = voteType
     sync()
   }
 
-  // ✅ 進入第二輪 (僅剩未投票者，且只有贊成/反對)
   function nextVotingRound() {
     votingRound2.value = true
     sync()
   }
 
-  // ✅ 結束投票
   function endVotingRollCall() {
     rollCallVoteStatus.value = 'finished'
     sync()
@@ -233,7 +226,6 @@ export const useConferenceStore = defineStore('conference', () => {
     sync()
   }
 
-  // ✅ 共識決自動返回正式辯論
   function finishConsensus() {
     screenMode.value = 'default'
     meetingPhase.value = '正式辯論'
@@ -278,7 +270,7 @@ export const useConferenceStore = defineStore('conference', () => {
   }
   function submitMotion(type, country, details) {
     if (!type || !country) return
-    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
+    if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('️ 僅理事國可動議')
     if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('⚠️ 僅P5可提閉門')
     if (type === '有主持核心磋商') {
       const t = (details.totalTime || 10) * 60, s = details.speakTime || 60
@@ -347,6 +339,55 @@ export const useConferenceStore = defineStore('conference', () => {
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
   function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
 
+  // ✅ 新增：儲存進度（強制同步）
+  function saveProgress() {
+    sync()
+  }
+
+  // ✅ 新增：重置整個會議
+  function resetMeeting() {
+    if (!confirm('⚠️ 確定要重置整個會議嗎？這將清除所有點名、投票、動議與統計紀錄，且無法復原！')) return
+    
+    // 重置狀態
+    meetingPhase.value = '正式辯論'
+    screenMode.value = 'default'
+    isRollCallActive.value = false
+    rollCallFinished.value = false
+    isGeneralTimerRunning.value = false
+    isModCaucusRunning.value = false
+    
+    // 清空數據
+    generalList.value = []
+    motionQueue.value = []
+    documents.value = []
+    modCaucusList.value = []
+    
+    // 清空對象
+    Object.keys(rollCallStatus).forEach(key => delete rollCallStatus[key])
+    Object.keys(stats).forEach(key => delete stats[key])
+    Object.keys(rollCallVoteData).forEach(key => delete rollCallVoteData[key])
+    
+    // 重置變數
+    generalTimeLimit.value = 60
+    currentGeneralSpeaker.value = ''
+    generalSpeakerTimer.value = 0
+    modCaucusSpeakerTimer.value = 0
+    modCaucusTotalTimer.value = 0
+    modCaucusTopic.value = ''
+    modCaucusDefaultSpeakTime.value = 0
+    p5Timer.value = 0
+    caucusTotalTimer.value = 0
+    rollCallVoteStatus.value = 'voting'
+    votingRound2.value = false
+    currentVotingMotion.value = null
+    
+    recalcThresholds()
+    sync()
+    
+    // 延遲重新載入頁面，確保畫面乾淨
+    setTimeout(() => { window.location.reload() }, 500)
+  }
+
   return {
     meetingPhase, screenMode, currentSection, rollCallStatus, isRollCallActive, rollCallFinished, rollCallThresholds,
     generalTimeLimit, generalList, currentGeneralSpeaker, generalSpeakerTimer, isGeneralTimerRunning,
@@ -356,6 +397,7 @@ export const useConferenceStore = defineStore('conference', () => {
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
     addDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
-    startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus, recalcThresholds, sync
+    startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus,
+    saveProgress, resetMeeting, recalcThresholds, sync
   }
 })
