@@ -13,9 +13,9 @@
           <option value="議程 6">議程 6 (5/31 15:00~17:00)</option>
         </select>
         
-        <!-- ✅ 新增按鈕 -->
         <button class="btn-open-screen" @click="openScreenView">📺 開啟代表端</button>
         <button class="btn-stats" @click="router.push('/stats')" title="查看各國統計表格">📊 各國統計</button>
+        <button class="btn-clear-stats" @click="clearStats" title="清除所有統計資料">🗑️ 清除統計</button>
         
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
@@ -90,7 +90,6 @@
         <div class="card">
           <h3>📜 動議佇列</h3>
           <div class="motion-form">
-            <!-- ✅ 加入唱名表決與共識決 -->
             <select v-model="mType" @change="mDetails={}">
               <option value="">選擇動議類型</option>
               <option v-for="t in ['自由磋商','全體諮詢','有主持核心磋商','暫停會議','恢復會議','介紹決議草案','介紹修正案','P5閉門協商','唱名表決','共識決']" :key="t" :value="t">{{ t }}</option>
@@ -208,16 +207,13 @@ const selectedSection = ref('議程 1')
 
 let clockInterval = null
 
-function handleLogout() {
-  // ✅ 使用 CDN 提供的 auth
-  const { auth, authMethods } = window.firebase
-  authMethods.signOut(auth).then(() => {
-    router.push('/login')
-  }).catch(err => {
-    console.error('登出失敗:', err)
-  })
+function formatTime(sec) {
+  const m = Math.floor((sec || 0) / 60)
+  const s = (sec || 0) % 60
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+// ✅ 登出函數（只宣告一次，使用 CDN）
 function handleLogout() {
   const { auth, authMethods } = window.firebase
   authMethods.signOut(auth).then(() => {
@@ -227,9 +223,24 @@ function handleLogout() {
   })
 }
 
+// ✅ 開啟代表端
 function openScreenView() {
   const route = router.resolve('/screen')
   window.open(route.href, '_blank')
+}
+
+// ✅ 清除統計資料
+async function clearStats() {
+  if (!confirm('⚠️ 確定要清除所有國家的統計資料嗎？此操作無法復原！')) return
+  try {
+    const { db, dbMethods } = window.firebase
+    const statsRef = dbMethods.ref(db, 'mun_state/stats')
+    await dbMethods.set(statsRef, {})
+    alert('✅ 統計資料已清除')
+  } catch (err) {
+    console.error('清除統計失敗:', err)
+    alert('❌ 清除失敗，請檢查 Console')
+  }
 }
 
 onMounted(() => {
@@ -306,6 +317,7 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-logout:hover { background: #455a64; }
 .btn-open-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-stats { background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.btn-clear-stats { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 </style>
