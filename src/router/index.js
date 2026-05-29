@@ -14,19 +14,17 @@ const routes = [
 
 const router = createRouter({ history: createWebHistory(), routes })
 
-// 🔒 路由守衛：使用 CDN 提供的全域 window.auth
+// 🔒 路由守衛
 router.beforeEach(async (to, from) => {
-  // 等待 CDN 載入完成
   const waitForAuth = () => {
     return new Promise((resolve) => {
       if (window.auth && window.auth.currentUser) {
         resolve()
       } else if (window.auth) {
-        window.auth.onAuthStateChanged((user) => {
+        window.auth.onAuthStateChanged(() => {
           resolve()
         })
       } else {
-        // 如果 auth 還沒載入，延遲重試
         setTimeout(waitForAuth, 100)
       }
     })
