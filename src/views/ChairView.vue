@@ -14,8 +14,8 @@
         </select>
         
         <button class="btn-open-screen" @click="openScreenView">📺 開啟代表端</button>
-        <button class="btn-stats" @click="router.push('/stats')">📊 各國統計</button>
-        <button class="btn-clear-stats" @click="clearStats">🗑️ 清除統計</button>
+        <button class="btn-stats" @click="router.push('/stats')"> 各國統計</button>
+        <button class="btn-clear-stats" @click="clearStats">️ 清除統計</button>
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
         <button class="btn-return-debate" @click="store.returnToDebate()">✅ 返回辯論</button>
@@ -25,11 +25,11 @@
 
     <div class="grid-layout">
       <div class="column left">
-        <!-- 唱名表決控制區 (優先顯示) -->
+        <!-- 唱名表決控制區 -->
         <div class="card" v-if="store.screenMode === 'voting_roll_call'">
-          <h3>️ 唱名表決控制</h3>
+          <h3>🗳️ 唱名表決控制</h3>
           <div class="voting-controls-header">
-            <span>輪次：{{ store.votingRound2 ? '第二輪 (贊成/反對)' : '第一輪 (完整)' }}</span>
+            <span>輪次：{{ store.votingRound2 ? '第二輪 (僅贊成/反對)' : '第一輪 (完整)' }}</span>
             <button class="btn-next-round" v-if="!store.votingRound2" @click="store.nextVotingRound()">⏭️ 進入第二輪</button>
             <button class="btn-end-vote" @click="store.endVotingRollCall()">✅ 結束投票並顯示結果</button>
           </div>
@@ -42,7 +42,7 @@
                 <span v-else class="pending-tag">待投票</span>
               </div>
               <div class="d-actions">
-                <button class="btn-vote" @click="openVoteModal(d.name)">🗳️ 投票</button>
+                <button class="btn-vote" @click="openVoteModal(d.name)">️ 投票</button>
                 <button class="btn-clear" v-if="store.rollCallVoteData[d.name]" @click="store.recordRollCallVote(d.name, null)">清除</button>
               </div>
             </div>
@@ -53,13 +53,12 @@
         <div class="card" v-else-if="store.screenMode === 'voting_consensus'">
           <h3>🤝 共識決投票</h3>
           <div class="consensus-controls">
-            <button class="btn-consensus yes" @click="store.recordVote('consensus', 'yes')">✅ 贊成</button>
-            <button class="btn-consensus abstain" @click="store.recordVote('consensus', 'abstain')">⚪ 棄權</button>
-            <button class="btn-consensus no" @click="store.recordVote('consensus', 'no')">❌ 反對</button>
+            <button class="btn-consensus pass" @click="showConsensusResult(true)">✅ 通過</button>
+            <button class="btn-consensus fail" @click="showConsensusResult(false)">❌ 不通過</button>
           </div>
         </div>
 
-        <!-- 常設發言人名單 (預設模式顯示) -->
+        <!-- 常設發言人名單 & 點名系統 (預設模式顯示) -->
         <div class="card" v-else>
           <h3>🎤 常設發言人名單</h3>
           <div class="current-speaker-box">
@@ -83,7 +82,7 @@
             <div v-if="store.generalList.length === 0" class="empty">無登記代表</div>
           </div>
           <div class="timer-control-row">
-            <button class="btn-next" @click="store.nextGeneralSpeaker">️ 下一位</button>
+            <button class="btn-next" @click="store.nextGeneralSpeaker">➡️ 下一位</button>
             <select v-model="yieldTarget" class="yield-select" :disabled="!store.currentGeneralSpeaker || store.generalSpeakerTimer <= 0">
               <option value="">🔄 讓渡予...</option>
               <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
@@ -95,7 +94,6 @@
           </div>
         </div>
 
-        <!-- 點名系統 (預設模式顯示) -->
         <div class="card roll-call-control" v-if="store.screenMode !== 'voting_roll_call' && store.screenMode !== 'voting_consensus'">
           <h3>📋 點名系統</h3>
           <div v-if="!store.isRollCallActive" class="rc-trigger">
@@ -110,7 +108,7 @@
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'present' ? 'active-present' : '']" @click="store.markRollCall(d.name, 'present')">出席</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'late' ? 'active-late' : '']" @click="store.markRollCall(d.name, 'late')">遲到</button>
                   <button :class="['rc-btn', store.rollCallStatus[d.name] === 'absent' ? 'active-absent' : '']" @click="store.markRollCall(d.name, 'absent')">缺席</button>
-                  <button v-if="store.rollCallStatus[d.name] === 'present'" class="rc-btn-change-late" @click="store.changeToLate(d.name)">️ 改遲到</button>
+                  <button v-if="store.rollCallStatus[d.name] === 'present'" class="rc-btn-change-late" @click="store.changeToLate(d.name)">↪️ 改遲到</button>
                 </div>
               </div>
             </div>
@@ -139,7 +137,7 @@
               <input v-model.number="mDetails.totalTime" type="number" placeholder="總時長(分)" />
               <input v-model.number="mDetails.speakTime" type="number" placeholder="每人發言(秒)" />
             </template>
-            <button class="btn-submit" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)"> 提交動議</button>
+            <button class="btn-submit" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
           </div>
           
           <div class="queue-list">
@@ -148,7 +146,7 @@
               <span>{{ m.type }} - {{ m.country }}</span>
               <div class="btn-group">
                 <button class="btn-pass" @click="store.approveMotion(i)">✓ 通過</button>
-                <button class="btn-reject" @click="store.rejectMotion()">✗ 駁回</button>
+                <button class="btn-reject" @click="store.rejectMotion()"> 駁回</button>
               </div>
             </div>
             <div v-if="store.motionQueue.length === 0" class="empty">佇列為空</div>
@@ -159,46 +157,26 @@
         <div class="card">
           <h3>📄 場上文件公告</h3>
           <div class="input-row">
-            <select v-model="docType">
-              <option value="WD">工作文件 (WD)</option>
-              <option value="DR">決議草案 (DR)</option>
-              <option value="A">修正案 (A)</option>
-            </select>
-            <input v-model="docNumber" placeholder="編號 (如 1.1)" />
-            <input v-model="docTitle" placeholder="標題/議題" />
+            <select v-model="docType"><option value="WD">工作文件 (WD)</option><option value="DR">決議草案 (DR)</option><option value="A">修正案 (A)</option></select>
+            <input v-model="docNumber" placeholder="編號 (如 1.1)" /><input v-model="docTitle" placeholder="標題/議題" />
             <button @click="store.addDocument(docType, docNumber, docTitle); docNumber=''; docTitle=''">公告</button>
           </div>
-          <div class="doc-preview">
-            <div v-for="doc in store.documents" :key="doc.number" class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</div>
-          </div>
+          <div class="doc-preview"><div v-for="doc in store.documents" :key="doc.number" class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</div></div>
         </div>
 
         <div class="card" v-if="store.screenMode === 'mod_caucus'">
           <h3>🎤 有主持核心磋商控制</h3>
-          <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong> (依動議自動帶入)</div>
+          <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong></div>
           <div class="input-row">
-            <select v-model="modSelCountry">
-              <option value="">選擇國家</option>
-              <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
-            </select>
+            <select v-model="modSelCountry"><option value="">選擇國家</option><option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option></select>
             <button @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
           </div>
-          <div class="list-scroll">
-            <div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item">
-              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span>
-            </div>
-            <div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div>
-          </div>
+          <div class="list-scroll"><div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item"><span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span></div><div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div></div>
           <div class="timer-control-row">
             <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位</button>
-            <button :class="['btn-timer', store.isModCaucusRunning ? 'active' : '']" @click="store.toggleModCaucusTimer">
-              {{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}
-            </button>
-            <button class="btn-clear-mod" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">🗑️ 清空磋商名單</button>
-            <div class="dual-timer">
-              <span>總時長: {{ formatTime(store.modCaucusTotalTimer) }}</span>
-              <span>當前: {{ formatTime(store.modCaucusSpeakerTimer) }}</span>
-            </div>
+            <button :class="['btn-timer', store.isModCaucusRunning ? 'active' : '']" @click="store.toggleModCaucusTimer">{{ store.isModCaucusRunning ? '️ 暫停' : '▶️ 開始' }}</button>
+            <button class="btn-clear-mod" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">️ 清空名單</button>
+            <div class="dual-timer"><span>總時長: {{ formatTime(store.modCaucusTotalTimer) }}</span><span>當前: {{ formatTime(store.modCaucusSpeakerTimer) }}</span></div>
           </div>
         </div>
       </div>
@@ -207,14 +185,14 @@
     <!-- 投票彈窗 Modal -->
     <div class="vote-modal-overlay" v-if="showVoteModal" @click.self="showVoteModal = false">
       <div class="vote-modal">
-        <h3>為 <strong>{{ votingTargetCountry }}</strong> 投票</h3>
+        <h3>為 <strong>{{ votingTargetCountry }}</strong> 投票 ({{ store.votingRound2 ? '第二輪' : '第一輪' }})</h3>
         <div class="vote-options">
           <button class="vote-btn yes" @click="setVote('yes')">✅ 贊成</button>
           <button class="vote-btn yes-speak" @click="setVote('yes_speak')" v-if="!store.votingRound2">🗣️ 贊成並發言</button>
           <button class="vote-btn no" @click="setVote('no')"> 反對</button>
           <button class="vote-btn no-speak" @click="setVote('no_speak')" v-if="!store.votingRound2">🗣️ 反對並發言</button>
-          <button class="vote-btn abstain" @click="setVote('abstain')"> 棄權</button>
-          <button class="vote-btn pass" @click="setVote('pass')" v-if="!store.votingRound2">️ 跳過 (保留權利)</button>
+          <button class="vote-btn abstain" @click="setVote('abstain')" v-if="!store.votingRound2">⚪ 棄權</button>
+          <button class="vote-btn pass" @click="setVote('pass')" v-if="!store.votingRound2">⏭️ 跳過</button>
         </div>
       </div>
     </div>
@@ -230,82 +208,32 @@ import { useConferenceStore } from '../stores/conference'
 
 const router = useRouter()
 const store = useConferenceStore()
-
-const selCountry = ref('')
-const yieldTarget = ref('')
-const mType = ref('')
-const mCountry = ref('')
-const mDetails = ref({})
-const modSelCountry = ref('')
-const timeLimitInput = ref(60)
-const docType = ref('WD')
-const docNumber = ref('')
-const docTitle = ref('')
-const currentTime = ref('')
-const selectedSection = ref('議程 1')
-
-// 投票 Modal 狀態
-const showVoteModal = ref(false)
-const votingTargetCountry = ref('')
-
+const selCountry = ref(''); const yieldTarget = ref(''); const mType = ref(''); const mCountry = ref(''); const mDetails = ref({})
+const modSelCountry = ref(''); const timeLimitInput = ref(60); const docType = ref('WD'); const docNumber = ref(''); const docTitle = ref('')
+const currentTime = ref(''); const selectedSection = ref('議程 1')
+const showVoteModal = ref(false); const votingTargetCountry = ref('')
 let clockInterval = null
 
-function formatTime(sec) {
-  const m = Math.floor((sec || 0) / 60)
-  const s = (sec || 0) % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+function formatTime(sec) { const m = Math.floor((sec || 0) / 60); const s = (sec || 0) % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
+function handleLogout() { const { auth, authMethods } = window.firebase; authMethods.signOut(auth).then(() => { router.push('/login') }) }
+function openScreenView() { const route = router.resolve('/screen'); window.open(route.href, '_blank') }
+async function clearStats() { if (!confirm('️ 確定要清除統計？')) return; try { const { db, dbMethods } = window.firebase; await dbMethods.set(dbMethods.ref(db, 'mun_state/stats'), null); alert('✅ 已清除'); window.location.reload() } catch(e) { alert('❌ 失敗') } }
+
+function openVoteModal(country) { votingTargetCountry.value = country; showVoteModal.value = true }
+function setVote(voteType) { store.recordRollCallVote(votingTargetCountry.value, voteType); showVoteModal.value = false }
+function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'️ 反對並發言', abstain:' 棄權', pass:'⏭️ 跳過' }[vote] || '' }
+
+// ✅ 共識決結果處理
+function showConsensusResult(passed) {
+  alert(passed ? '✅ 共識決：通過' : '❌ 共識決：不通過')
+  store.finishConsensus()
 }
 
-function handleLogout() {
-  const { auth, authMethods } = window.firebase
-  authMethods.signOut(auth).then(() => { router.push('/login') }).catch(err => { console.error('登出失敗:', err) })
-}
-
-function openScreenView() {
-  const route = router.resolve('/screen')
-  window.open(route.href, '_blank')
-}
-
-async function clearStats() {
-  if (!confirm('️ 確定要清除所有國家的統計資料嗎？此操作無法復原！')) return
-  try {
-    const { db, dbMethods } = window.firebase
-    await dbMethods.set(dbMethods.ref(db, 'mun_state/stats'), null)
-    alert('✅ 統計資料已清除')
-    window.location.reload()
-  } catch (err) {
-    console.error('清除統計失敗:', err)
-    alert(' 清除失敗')
-  }
-}
-
-// ✅ 投票相關函數
-function openVoteModal(country) {
-  votingTargetCountry.value = country
-  showVoteModal.value = true
-}
-
-function setVote(voteType) {
-  store.recordRollCallVote(votingTargetCountry.value, voteType)
-  showVoteModal.value = false
-}
-
-function getVoteLabel(vote) {
-  const map = { yes: '✅ 贊成', yes_speak: '🗣️ 贊成並發言', no: '❌ 反對', no_speak: '🗣️ 反對並發言', abstain: '⚪ 棄權', pass: '⏭️ 跳過' }
-  return map[vote] || ''
-}
-
-onMounted(() => {
-  const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }
-  updateClock()
-  clockInterval = setInterval(updateClock, 1000)
-})
-
+onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
 onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
 </script>
 
 <style scoped>
-/* 保持原有樣式... */
 .section-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-size: 0.9rem; }
 .roll-call-control { border: 2px solid #2196f3; }
 .btn-start-rollcall { width: 100%; padding: 12px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; }
@@ -367,7 +295,6 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-/* ✅ 唱名表決新增樣式 */
 .voting-controls-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
 .btn-next-round { background: #2196f3; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
 .btn-end-vote { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -382,14 +309,11 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-vote { flex: 1; padding: 4px; background: #673ab7; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
 .btn-clear { padding: 4px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
 
-/* 共識決 */
 .consensus-controls { display: flex; gap: 10px; margin-top: 10px; }
 .btn-consensus { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
-.btn-consensus.yes { background: #4caf50; color: white; }
-.btn-consensus.abstain { background: #9e9e9e; color: white; }
-.btn-consensus.no { background: #f44336; color: white; }
+.btn-consensus.pass { background: #4caf50; color: white; }
+.btn-consensus.fail { background: #f44336; color: white; }
 
-/* Modal */
 .vote-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000; }
 .vote-modal { background: white; padding: 20px; border-radius: 12px; width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 .vote-modal h3 { margin-top: 0; text-align: center; }

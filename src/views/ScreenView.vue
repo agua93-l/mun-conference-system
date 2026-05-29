@@ -22,9 +22,7 @@
           </div>
         </div>
         <div v-if="store.rollCallFinished" class="roll-call-summary">
-          <div class="attendance-count">
-            <strong>✅ 出席理事國：{{ store.rollCallThresholds.present }} 席</strong>
-          </div>
+          <div class="attendance-count"><strong>✅ 出席理事國：{{ store.rollCallThresholds.present }} 席</strong></div>
           <div class="voting-thresholds">
             <div class="threshold-item"><span>✓ 簡單多數</span><strong>{{ store.rollCallThresholds.simple }}</strong></div>
             <div class="threshold-item"><span>✓✓ 絕對多數 (2/3)</span><strong>{{ store.rollCallThresholds.twoThirds }}</strong></div>
@@ -33,12 +31,11 @@
         </div>
       </section>
 
-      <!-- ✅ 唱名表決模式 (各國格狀顯示) -->
+      <!-- ✅ 唱名表決模式 -->
       <section v-else-if="store.screenMode === 'voting_roll_call'" class="mode-panel voting-panel">
         <h2 class="voting-title">🗳️ 唱名表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
         
-        <!-- 投票進行中：顯示各國選擇 -->
         <div v-if="store.rollCallVoteStatus === 'voting'" class="vote-in-progress">
           <div class="round-label">第 {{ store.votingRound2 ? '二' : '一' }} 輪投票</div>
           <div class="countries-grid">
@@ -49,12 +46,11 @@
           </div>
         </div>
 
-        <!-- 投票結束：顯示結果 -->
         <div v-else-if="store.rollCallVoteStatus === 'finished'" class="vote-result">
-          <div class="result-banner" :class="{ passed: passedVote }">
-            <h3>{{ passedVote ? '✅ 動議通過' : '❌ 動議未通過' }}</h3>
-            <p>贊成: {{ store.voteCounts.yes + store.voteCounts.yesSpeak }} | 反對: {{ store.voteCounts.no + store.voteCounts.noSpeak }} | 棄權: {{ store.voteCounts.abstain }}</p>
-            <p v-if="!passedVote" class="reason">(贊成票未達出席理事國多數)</p>
+          <div class="result-banner" :class="{ passed: store.passedVote }">
+            <h3>{{ store.passedVote ? '✅ 動議通過' : '❌ 動議未通過' }}</h3>
+            <p>贊成: {{ store.voteCounts.yes }} | 反對: {{ store.voteCounts.no }} | 棄權: {{ store.voteCounts.abstain }}</p>
+            <p v-if="!store.passedVote" class="reason">{{ p5VetoReason || '贊成票未達 9 票門檻' }}</p>
           </div>
           <div class="countries-grid final">
             <div v-for="d in store.delegates.filter(x => x.type === 'member')" :key="d.name" class="country-card final">
@@ -65,7 +61,7 @@
         </div>
       </section>
 
-      <!-- 共識決投票 -->
+      <!-- ✅ 共識決模式 (自動返回正式辯論) -->
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
@@ -117,8 +113,7 @@
             <h3 class="mod-list-header">發言順序</h3>
             <div class="mod-list-container">
               <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-xl">
-                <span class="mod-num">{{ i + 1 }}</span>
-                <span class="mod-name">{{ spk.country }}</span>
+                <span class="mod-num">{{ i + 1 }}</span><span class="mod-name">{{ spk.country }}</span>
               </div>
               <div v-if="store.modCaucusList.length === 0" class="mod-empty">暫無順序</div>
             </div>
@@ -137,9 +132,7 @@
 
       <!-- 會議暫停 -->
       <section v-else-if="store.screenMode === 'suspended'" class="mode-panel suspended-panel">
-        <div class="suspended-content">
-          <h2 class="suspended-title">⏸️ 會議暫停</h2>
-        </div>
+        <div class="suspended-content"><h2 class="suspended-title">⏸️ 會議暫停</h2></div>
       </section>
 
       <!-- 預設模式 -->
@@ -155,7 +148,7 @@
           </div>
           <div class="right-split">
             <div class="card roll-call-card">
-              <h3>📊 點名統計與投票門檻</h3>
+              <h3> 點名統計與投票門檻</h3>
               <div class="roll-call-brief">
                 <div class="brief-item"><span class="brief-label">出席理事國</span><span class="brief-value present">{{ store.rollCallThresholds.present }}</span></div>
                 <div class="brief-item"><span class="brief-label">遲到</span><span class="brief-value late">{{ Object.values(store.rollCallStatus).filter(s => s === 'late').length }}</span></div>
@@ -191,17 +184,15 @@ let clockInterval = null
 
 function formatTime(sec) { if (!sec && sec !== 0) return '00:00'; const m = Math.floor(sec / 60); const s = sec % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 
-// ✅ 獲取投票圖標
 function getVoteIcon(vote) {
-  const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '', pass: '⏭️' }
+  const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '⚪', pass: '⏭️' }
   return map[vote] || ''
 }
 
-// ✅ 計算是否通過 (贊成 > 反對)
-const passedVote = computed(() => {
-  const yes = store.voteCounts.yes + store.voteCounts.yesSpeak
-  const no = store.voteCounts.no + store.voteCounts.noSpeak
-  return yes > no
+// ✅ 判斷五常是否否決
+const p5VetoReason = computed(() => {
+  const vetoers = store.delegates.filter(d => d.p5 && (store.rollCallVoteData[d.name] === 'no' || store.rollCallVoteData[d.name] === 'no_speak'))
+  return vetoers.length > 0 ? `五常 (${vetoers.map(v => v.name).join(', ')}) 行使否決權` : ''
 })
 
 onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
@@ -220,32 +211,24 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .mode-panel { text-align: center; padding: 40px 0; }
 .timer-large { font-size: 5rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 20px 0; }
 
-/* 點名網格 */
 .roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-width: 1000px; margin: 20px auto; }
 .roll-call-item { background: #1e293b; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; font-size: 1.2rem; align-items: center; }
-.status.present { color: #4ade80; font-weight: bold; }
-.status.late { color: #fbbf24; font-weight: bold; }
-.status.absent { color: #f87171; font-weight: bold; }
+.status.present { color: #4ade80; font-weight: bold; } .status.late { color: #fbbf24; font-weight: bold; } .status.absent { color: #f87171; font-weight: bold; }
 .roll-call-summary { margin-top: 30px; padding: 25px; background: #1e293b; border-radius: 12px; max-width: 900px; margin-left: auto; margin-right: auto; }
 .attendance-count { font-size: 2rem; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155; color: #4ade80; }
 .voting-thresholds { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
 .threshold-item { background: #0f172a; padding: 18px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
-.threshold-item span { font-size: 1.1rem; color: #94a3b8; margin-bottom: 8px; }
-.threshold-item strong { font-size: 2.2rem; color: #fbbf24; }
+.threshold-item span { font-size: 1.1rem; color: #94a3b8; margin-bottom: 8px; } .threshold-item strong { font-size: 2.2rem; color: #fbbf24; }
 
-/* ✅ 唱名表決專用樣式 */
 .voting-panel { padding: 20px; }
 .voting-title { font-size: 3.5rem; font-weight: 800; color: #fbbf24; margin-bottom: 10px; }
 .voting-topic { font-size: 1.5rem; color: #94a3b8; margin-bottom: 20px; }
 .round-label { font-size: 1.2rem; color: #38bdf8; margin-bottom: 20px; }
 
-/* 國家網格 */
 .countries-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; max-width: 1200px; margin: 0 auto; }
 .country-card { background: #1e293b; padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; border: 2px solid #334155; }
-.country-name { font-size: 1.3rem; font-weight: bold; }
-.country-vote { font-size: 2.5rem; }
+.country-name { font-size: 1.3rem; font-weight: bold; } .country-vote { font-size: 2.5rem; }
 
-/* 結果卡片 */
 .vote-result { margin-top: 20px; }
 .result-banner { background: #1e293b; padding: 30px; border-radius: 16px; margin-bottom: 30px; border: 4px solid #334155; }
 .result-banner.passed { border-color: #4ade80; background: #052e16; }
@@ -254,20 +237,14 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .result-banner p { font-size: 1.5rem; margin: 5px 0; }
 .reason { color: #f87171; font-weight: bold; }
 
-/* 共識決 */
 .consensus-display { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
 .consensus-item { display: flex; flex-direction: column; align-items: center; gap: 10px; background: #1e293b; padding: 30px 40px; border-radius: 12px; min-width: 200px; }
-.consensus-icon { font-size: 3rem; }
-.consensus-label { font-size: 1.5rem; color: #94a3b8; }
-.consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
+.consensus-icon { font-size: 3rem; } .consensus-label { font-size: 1.5rem; color: #94a3b8; } .consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
 
-/* 其他佈局 */
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
 .right-split { display: flex; flex-direction: column; gap: 20px; }
 .card { background: #1e293b; padding: 25px; border-radius: 12px; }
-.full-height { height: 100%; overflow-y: auto; }
-.roll-call-card { flex: 0 0 auto; }
-.documents-card { flex: 1; overflow-y: auto; }
+.full-height { height: 100%; overflow-y: auto; } .roll-call-card { flex: 0 0 auto; } .documents-card { flex: 1; overflow-y: auto; }
 .large-section-title { margin-top: 0; border-bottom: 2px solid #334155; padding-bottom: 15px; color: #94a3b8; font-size: 2.2rem; font-weight: 700; }
 h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; color: #94a3b8; font-size: 1.5rem; }
 .current-speaker { font-size: 1.8rem; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #0f172a; border-radius: 8px; }
@@ -275,13 +252,11 @@ h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; colo
 .list .general-list-item { padding: 22px 25px; border-bottom: 2px solid #334155; font-size: 2rem; font-weight: 600; min-height: 70px; display: flex; align-items: center; }
 .roll-call-brief { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
 .brief-item { display: flex; flex-direction: column; align-items: center; padding: 15px; background: #0f172a; border-radius: 8px; }
-.brief-label { font-size: 1rem; color: #94a3b8; margin-bottom: 8px; }
-.brief-value { font-size: 2.5rem; font-weight: bold; }
+.brief-label { font-size: 1rem; color: #94a3b8; margin-bottom: 8px; } .brief-value { font-size: 2.5rem; font-weight: bold; }
 .brief-value.present { color: #4ade80; } .brief-value.late { color: #fbbf24; } .brief-value.absent { color: #f87171; }
 .thresholds-brief { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .threshold-brief-item { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; }
-.threshold-brief-item span { display: block; font-size: 0.95rem; color: #94a3b8; margin-bottom: 5px; }
-.threshold-brief-item strong { font-size: 1.8rem; color: #fbbf24; }
+.threshold-brief-item span { display: block; font-size: 0.95rem; color: #94a3b8; margin-bottom: 5px; } .threshold-brief-item strong { font-size: 1.8rem; color: #fbbf24; }
 .doc-list { display: flex; flex-wrap: wrap; gap: 12px; }
 .doc-tag { background: #334155; padding: 12px 20px; border-radius: 8px; font-size: 1.1rem; font-weight: 500; }
 .empty { color: #64748b; padding: 20px; text-align: center; font-size: 1.2rem; }

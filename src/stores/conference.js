@@ -35,10 +35,10 @@ export const useConferenceStore = defineStore('conference', () => {
   const motionQueue = ref([])
   const currentVotingMotion = ref(null)
   
-  // ✅ 唱名表決專用狀態：逐國記錄
-  const rollCallVoteData = reactive({}) // { '中國': 'yes', '美國': 'no' ... }
+  // ✅ 唱名表決狀態
+  const rollCallVoteData = reactive({}) 
   const rollCallVoteStatus = ref('voting') // 'voting' | 'finished'
-  const votingRound2 = ref(false) // true = 第二輪 (無發言/跳過選項)
+  const votingRound2 = ref(false) // false=第一輪, true=第二輪
   
   const stats = reactive({})
   const documents = ref([])
@@ -67,13 +67,9 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // ✅ 輔助：確保 stats 結構
   const ensureStatsCountry = (country) => {
     if (!stats[country]) {
-      stats[country] = { 
-        speeches: 0, 
-        motions: { '自由磋商':0, '全體諮詢':0, '有主持核心磋商':0, '暫停會議':0, '恢復會議':0, '介紹決議草案':0, '介紹修正案':0, 'P5閉門協商':0, '唱名表決':0, '共識決':0 }
-      }
+      stats[country] = { speeches: 0, motions: { '自由磋商':0, '全體諮詢':0, '有主持核心磋商':0, '暫停會議':0, '恢復會議':0, '介紹決議草案':0, '介紹修正案':0, 'P5閉門協商':0, '唱名表決':0, '共識決':0 } }
     }
   }
 
@@ -87,39 +83,36 @@ export const useConferenceStore = defineStore('conference', () => {
   }
 
   const sortMotionQueue = () => {
-    const priorityMap = {
-      '終止會議': 1, '暫停會議': 2, '自由磋商': 3, '全體諮詢': 3,
-      '有主持核心磋商': 4, '介紹決議草案': 5, '介紹修正案': 6, 'P5閉門協商': 7, '結束辯論': 8,
-      '唱名表決': 9, '共識決': 10
-    }
+    const priorityMap = { '終止會議': 1, '暫停會議': 2, '自由磋商': 3, '全體諮詢': 3, '有主持核心磋商': 4, '介紹決議草案': 5, '介紹修正案': 6, 'P5閉門協商': 7, '結束辯論': 8, '唱名表決': 9, '共識決': 10 }
     motionQueue.value.sort((a, b) => {
-      const pA = priorityMap[a.type] || 99
-      const pB = priorityMap[b.type] || 99
+      const pA = priorityMap[a.type] || 99; const pB = priorityMap[b.type] || 99
       if (pA !== pB) return pA - pB
       const durA = (a.details.totalTime || a.details.duration || 0) * 60
       const durB = (b.details.totalTime || b.details.duration || 0) * 60
       if (durA !== durB) return durB - durA
       if (a.type === '有主持核心磋商' && b.type === '有主持核心磋商') {
-        const sA = durA / ((a.details.speakTime || 60))
-        const sB = durB / ((b.details.speakTime || 60))
+        const sA = durA / ((a.details.speakTime || 60)); const sB = durB / ((b.details.speakTime || 60))
         if (sA !== sB) return sB - sA
       }
       return (a.id || 0) - (b.id || 0)
     })
   }
 
-  // ✅ 計算當前投票統計 (從 rollCallVoteData 計算)
+  // ✅ 計算贊成/反對總數 (發言票直接合併計算)
   const voteCounts = computed(() => {
-    let yes = 0, yesSpeak = 0, no = 0, noSpeak = 0, abstain = 0, pass = 0
+    let yes = 0, no = 0, abstain = 0
     Object.values(rollCallVoteData).forEach(v => {
-      if (v === 'yes') yes++
-      else if (v === 'yes_speak') yesSpeak++
-      else if (v === 'no') no++
-      else if (v === 'no_speak') noSpeak++
+      if (v === 'yes' || v === 'yes_speak') yes++
+      else if (v === 'no' || v === 'no_speak') no++
       else if (v === 'abstain') abstain++
-      else if (v === 'pass') pass++
     })
-    return { yes, yesSpeak, no, noSpeak, abstain, pass }
+    return { yes, no, abstain }
+  })
+
+  // ✅ 判斷是否通過：贊成>=9 且 無五常反對
+  const passedVote = computed(() => {
+    const p5Veto = delegates.some(d => d.p5 && (rollCallVoteData[d.name] === 'no' || rollCallVoteData[d.name] === 'no_speak'))
+    return !p5Veto && voteCounts.value.yes >= 9
   })
 
   const startListener = () => {
@@ -145,16 +138,11 @@ export const useConferenceStore = defineStore('conference', () => {
       currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
       sortMotionQueue()
 
-      // ✅ 同步唱名投票數據
-      if (d.rollCallVoteData) {
-        Object.keys(d.rollCallVoteData).forEach(k => { rollCallVoteData[k] = d.rollCallVoteData[k] })
-      }
+      if (d.rollCallVoteData) Object.keys(d.rollCallVoteData).forEach(k => { rollCallVoteData[k] = d.rollCallVoteData[k] })
       rollCallVoteStatus.value = d.rollCallVoteStatus || 'voting'
       votingRound2.value = !!d.votingRound2
 
-      if (d.stats) {
-        Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
-      }
+      if (d.stats) Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
       
       documents.value = d.documents || []
       p5Timer.value = d.p5Timer ?? 0
@@ -172,8 +160,7 @@ export const useConferenceStore = defineStore('conference', () => {
 
   function sync() {
     if (!ensureFB()) return
-    recalcThresholds()
-    sortMotionQueue()
+    recalcThresholds(); sortMotionQueue()
     setFn(stateRef, {
       meetingPhase: meetingPhase.value, screenMode: screenMode.value, currentSection: currentSection.value,
       rollCallStatus: JSON.parse(JSON.stringify(rollCallStatus)), isRollCallActive: isRollCallActive.value,
@@ -188,10 +175,8 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusSpeakerTimer: modCaucusSpeakerTimer.value, modCaucusDefaultSpeakTime: modCaucusDefaultSpeakTime.value,
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value,
-      // ✅ 同步新數據
       rollCallVoteData: JSON.parse(JSON.stringify(rollCallVoteData)),
-      rollCallVoteStatus: rollCallVoteStatus.value,
-      votingRound2: votingRound2.value
+      rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value
     }).catch(() => {})
   }
 
@@ -215,45 +200,43 @@ export const useConferenceStore = defineStore('conference', () => {
   function changeToLate(country) { if (rollCallStatus[country] === 'present') { rollCallStatus[country] = 'late'; sync() } }
   function endRollCall() { isRollCallActive.value = false; screenMode.value = 'default'; sync() }
 
-  // ✅ 唱名表決控制
+  // ✅ 開始唱名表決
   function startVotingRollCall() {
     rollCallVoteStatus.value = 'voting'
     votingRound2.value = false
-    // 清空數據
     delegates.forEach(d => { delete rollCallVoteData[d.name] })
     screenMode.value = 'voting_roll_call'
     sync()
   }
   
-  // ✅ 記錄某國投票
+  // ✅ 記錄投票
   function recordRollCallVote(country, voteType) {
     rollCallVoteData[country] = voteType
     sync()
   }
 
-  // ✅ 進入第二輪
+  // ✅ 進入第二輪 (僅剩未投票者，且只有贊成/反對)
   function nextVotingRound() {
     votingRound2.value = true
-    // 清除第一輪的「發言」和「跳過」選項，重置為未投票
-    delegates.forEach(d => {
-      if (rollCallVoteData[d.name] === 'yes_speak' || rollCallVoteData[d.name] === 'no_speak' || rollCallVoteData[d.name] === 'pass') {
-        delete rollCallVoteData[d.name]
-      }
-    })
     sync()
   }
 
-  // ✅ 結束投票並計算結果
+  // ✅ 結束投票
   function endVotingRollCall() {
     rollCallVoteStatus.value = 'finished'
     sync()
   }
   
-  // ✅ 重置投票（取消投票）
   function resetVoting() {
     delegates.forEach(d => { delete rollCallVoteData[d.name] })
-    rollCallVoteStatus.value = 'voting'
-    votingRound2.value = false
+    rollCallVoteStatus.value = 'voting'; votingRound2.value = false
+    sync()
+  }
+
+  // ✅ 共識決自動返回正式辯論
+  function finishConsensus() {
+    screenMode.value = 'default'
+    meetingPhase.value = '正式辯論'
     sync()
   }
 
@@ -296,7 +279,7 @@ export const useConferenceStore = defineStore('conference', () => {
   function submitMotion(type, country, details) {
     if (!type || !country) return
     if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
-    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('️ 僅P5可提閉門')
+    if (type === 'P5閉門協商' && !delegates.find(d => d.name === country)?.p5) return alert('⚠️ 僅P5可提閉門')
     if (type === '有主持核心磋商') {
       const t = (details.totalTime || 10) * 60, s = details.speakTime || 60
       if (t % s !== 0) return alert('⚠️ 發言時長須整除總時長')
@@ -367,12 +350,12 @@ export const useConferenceStore = defineStore('conference', () => {
   return {
     meetingPhase, screenMode, currentSection, rollCallStatus, isRollCallActive, rollCallFinished, rollCallThresholds,
     generalTimeLimit, generalList, currentGeneralSpeaker, generalSpeakerTimer, isGeneralTimerRunning,
-    motionQueue, currentVotingMotion, votingRound2, voteCounts, rollCallVoteData, rollCallVoteStatus,
+    motionQueue, currentVotingMotion, votingRound2, voteCounts, passedVote, rollCallVoteData, rollCallVoteStatus,
     stats, documents, delegates,
     p5Timer, caucusTotalTimer, modCaucusTopic, modCaucusTotalTimer, modCaucusSpeakerTimer, modCaucusDefaultSpeakTime, modCaucusList, currentModSpeaker, isModCaucusRunning,
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
     addDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
-    startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, recalcThresholds, sync
+    startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus, recalcThresholds, sync
   }
 })
