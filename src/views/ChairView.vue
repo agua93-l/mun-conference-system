@@ -208,10 +208,14 @@ const selectedSection = ref('議程 1')
 
 let clockInterval = null
 
-function formatTime(sec) {
-  const m = Math.floor((sec || 0) / 60)
-  const s = (sec || 0) % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+function handleLogout() {
+  // ✅ 使用 CDN 提供的 auth
+  const { auth, authMethods } = window.firebase
+  authMethods.signOut(auth).then(() => {
+    router.push('/login')
+  }).catch(err => {
+    console.error('登出失敗:', err)
+  })
 }
 
 function handleLogout() {

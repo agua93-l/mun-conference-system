@@ -29,6 +29,7 @@ async function handleLogin() {
   loading.value = true
   error.value = ''
   try {
+    // ✅ 使用 CDN 提供的 auth
     const { auth, authMethods } = window.firebase
     await authMethods.signInWithEmailAndPassword(auth, email.value, password.value)
     router.push('/')
