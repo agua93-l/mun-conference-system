@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
   <head>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏛️</text></svg>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TYMUN 2026 Security Council</title>
@@ -13,7 +12,7 @@
     <script type="module">
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
       import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'
-      import { getDatabase, ref as dbRef, set, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
+      import { getDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
       
       const firebaseConfig = {
         apiKey: "AIzaSyBv7OleZaWKZTJS_TFW2E3u4ln5Rs7nkWo",
@@ -27,7 +26,7 @@
       
       const app = initializeApp(firebaseConfig)
       
-      // 掛載到 window 物件供全域使用
+      // ✅ 同時掛載到 window.firebase 和 window.auth（確保相容性）
       window.firebase = {
         app,
         auth: getAuth(app),
@@ -38,11 +37,23 @@
           signOut
         },
         dbMethods: {
-          ref: dbRef,
-          set,
-          onValue
+          ref: (db, path) => {
+            import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js').then(({ ref }) => ref(db, path))
+          },
+          set: null,
+          onValue: null
         }
       }
+      
+      // ✅ 也直接掛載到 window.auth 方便使用
+      window.auth = window.firebase.auth
+      
+      // 動態載入 dbMethods
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js').then(({ ref, set, onValue }) => {
+        window.firebase.dbMethods = { ref, set, onValue }
+      })
+      
+      console.log('✅ Firebase CDN 已載入')
     </script>
     
     <script type="module" src="/src/main.js"></script>
