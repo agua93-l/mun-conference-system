@@ -117,55 +117,26 @@ export const useConferenceStore = defineStore('conference', () => {
     onValueFn(stateRef, (snap) => {
       if (!snap.exists()) return
       const d = snap.val()
-      
-      // ✅ 避免重複更新相同值（修復競態條件）
       if (d.meetingPhase !== meetingPhase.value) meetingPhase.value = d.meetingPhase ?? '正式辯論'
       if (d.screenMode !== screenMode.value) screenMode.value = d.screenMode ?? 'default'
       if (d.currentSection !== currentSection.value) currentSection.value = d.currentSection ?? '議程 1'
-      
-      if (d.rollCallStatus) {
-        Object.keys(d.rollCallStatus).forEach(key => {
-          if (rollCallStatus[key] !== d.rollCallStatus[key]) rollCallStatus[key] = d.rollCallStatus[key]
-        })
-      }
+      if (d.rollCallStatus) Object.keys(d.rollCallStatus).forEach(key => { if (rollCallStatus[key] !== d.rollCallStatus[key]) rollCallStatus[key] = d.rollCallStatus[key] })
       if (d.isRollCallActive !== isRollCallActive.value) isRollCallActive.value = !!d.isRollCallActive
       if (d.rollCallFinished !== rollCallFinished.value) rollCallFinished.value = !!d.rollCallFinished
-      
       recalcThresholds()
       if (d.generalTimeLimit !== generalTimeLimit.value) generalTimeLimit.value = d.generalTimeLimit ?? 60
-      
-      // ✅ 修復 generalList 競態條件：只在內容不同時更新
-      if (JSON.stringify(d.generalList) !== JSON.stringify(generalList.value)) {
-        generalList.value = d.generalList || []
-      }
+      if (JSON.stringify(d.generalList) !== JSON.stringify(generalList.value)) generalList.value = d.generalList || []
       if (d.currentGeneralSpeaker !== currentGeneralSpeaker.value) currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
       if (d.generalSpeakerTimer !== generalSpeakerTimer.value) generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
       if (d.isGeneralTimerRunning !== isGeneralTimerRunning.value) isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
-      
-      if (JSON.stringify(d.motionQueue) !== JSON.stringify(motionQueue.value)) {
-        motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
-      }
+      if (JSON.stringify(d.motionQueue) !== JSON.stringify(motionQueue.value)) motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
       const rawMotion = d.currentVotingMotion || null
-      if (JSON.stringify(rawMotion) !== JSON.stringify(currentVotingMotion.value)) {
-        currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
-      }
+      if (JSON.stringify(rawMotion) !== JSON.stringify(currentVotingMotion.value)) currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
       sortMotionQueue()
-
-      if (d.rollCallVoteData) {
-        Object.keys(d.rollCallVoteData).forEach(k => {
-          if (rollCallVoteData[k] !== d.rollCallVoteData[k]) rollCallVoteData[k] = d.rollCallVoteData[k]
-        })
-      }
+      if (d.rollCallVoteData) Object.keys(d.rollCallVoteData).forEach(k => { if (rollCallVoteData[k] !== d.rollCallVoteData[k]) rollCallVoteData[k] = d.rollCallVoteData[k] })
       if (d.rollCallVoteStatus !== rollCallVoteStatus.value) rollCallVoteStatus.value = d.rollCallVoteStatus || 'voting'
       if (d.votingRound2 !== votingRound2.value) votingRound2.value = !!d.votingRound2
-
-      if (d.stats) {
-        Object.keys(d.stats).forEach(key => { 
-          ensureStatsCountry(key)
-          Object.assign(stats[key], d.stats[key]) 
-        })
-      }
-      
+      if (d.stats) Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
       if (JSON.stringify(d.documents) !== JSON.stringify(documents.value)) documents.value = d.documents || []
       if (d.p5Timer !== p5Timer.value) p5Timer.value = d.p5Timer ?? 0
       if (d.caucusTotalTimer !== caucusTotalTimer.value) caucusTotalTimer.value = d.caucusTotalTimer ?? 0
@@ -173,9 +144,7 @@ export const useConferenceStore = defineStore('conference', () => {
       if (d.modCaucusTotalTimer !== modCaucusTotalTimer.value) modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
       if (d.modCaucusSpeakerTimer !== modCaucusSpeakerTimer.value) modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
       if (d.modCaucusDefaultSpeakTime !== modCaucusDefaultSpeakTime.value) modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
-      if (d.modCaucusList) {
-        if (JSON.stringify(d.modCaucusList) !== JSON.stringify(modCaucusList.value)) modCaucusList.value = d.modCaucusList
-      }
+      if (d.modCaucusList && JSON.stringify(d.modCaucusList) !== JSON.stringify(modCaucusList.value)) modCaucusList.value = d.modCaucusList
       if (d.currentModSpeaker !== currentModSpeaker.value) currentModSpeaker.value = d.currentModSpeaker || ''
       if (d.isModCaucusRunning !== isModCaucusRunning.value) isModCaucusRunning.value = !!d.isModCaucusRunning
     })
@@ -231,60 +200,40 @@ export const useConferenceStore = defineStore('conference', () => {
     screenMode.value = 'voting_roll_call'
     sync()
   }
-  
-  function recordRollCallVote(country, voteType) {
-    rollCallVoteData[country] = voteType
-    sync()
-  }
+  function recordRollCallVote(country, voteType) { rollCallVoteData[country] = voteType; sync() }
+  function nextVotingRound() { votingRound2.value = true; sync() }
+  function endVotingRollCall() { rollCallVoteStatus.value = 'finished'; sync() }
+  function resetVoting() { delegates.forEach(d => { delete rollCallVoteData[d.name] }); rollCallVoteStatus.value = 'voting'; votingRound2.value = false; sync() }
+  function finishConsensus() { screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync() }
 
-  function nextVotingRound() {
-    votingRound2.value = true
-    sync()
-  }
-
-  function endVotingRollCall() {
-    rollCallVoteStatus.value = 'finished'
-    sync()
-  }
-  
-  function resetVoting() {
-    delegates.forEach(d => { delete rollCallVoteData[d.name] })
-    rollCallVoteStatus.value = 'voting'; votingRound2.value = false
-    sync()
-  }
-
-  function finishConsensus() {
-    screenMode.value = 'default'
-    meetingPhase.value = '正式辯論'
-    sync()
+  // ✅ 修復：toggleGeneralTimer 競態條件
+  function toggleGeneralTimer() {
+    if (isGeneralTimerRunning.value) {
+      if (generalInterval) { clearInterval(generalInterval); generalInterval = null }
+      isGeneralTimerRunning.value = false
+      sync()
+    } else {
+      if (generalSpeakerTimer.value <= 0) return
+      isGeneralTimerRunning.value = true
+      sync()
+      generalInterval = setInterval(() => {
+        if (generalSpeakerTimer.value > 0) { generalSpeakerTimer.value--; sync() }
+        else { toggleGeneralTimer() }
+      }, 1000)
+    }
   }
 
   // ✅ 修復：nextGeneralSpeaker 競態條件
   function nextGeneralSpeaker() {
     if (generalList.value.length === 0) return
-    
-    // 1. 先複製清單，避免直接修改響應式物件導致重複觸發
     const newList = [...generalList.value]
-    newList.shift() // 移除第一個
-    
-    // 2. 計算新的當前發言人與計時器
+    newList.shift()
     const next = newList[0]
-    const newSpeaker = next?.country || ''
-    const newTimer = next?.time || 0
-    
-    // 3. 一次性更新所有狀態
     generalList.value = newList
-    currentGeneralSpeaker.value = newSpeaker
-    generalSpeakerTimer.value = newTimer
+    currentGeneralSpeaker.value = next?.country || ''
+    generalSpeakerTimer.value = next?.time || 0
     isGeneralTimerRunning.value = false
-    
-    // 4. 清除計時器
-    if (generalInterval) {
-      clearInterval(generalInterval)
-      generalInterval = null
-    }
-    
-    // 5. 最後同步到 Firebase（只呼叫一次）
+    if (generalInterval) { clearInterval(generalInterval); generalInterval = null }
     sync()
   }
 
@@ -295,36 +244,26 @@ export const useConferenceStore = defineStore('conference', () => {
     generalList.value = newList
     currentGeneralSpeaker.value = target
     generalSpeakerTimer.value = rem
-    isGeneralTimerRunning.value = true
-    
     if (generalInterval) clearInterval(generalInterval)
-    generalInterval = setInterval(() => {
-      if (generalSpeakerTimer.value > 0) {
-        generalSpeakerTimer.value--
-        sync()
-      } else {
-        if (generalInterval) {
-          clearInterval(generalInterval)
-          generalInterval = null
-        }
-        isGeneralTimerRunning.value = false
-        sync()
-      }
-    }, 1000)
+    if (rem > 0) {
+      isGeneralTimerRunning.value = true
+      generalInterval = setInterval(() => {
+        if (generalSpeakerTimer.value > 0) { generalSpeakerTimer.value--; sync() }
+        else { if (generalInterval) { clearInterval(generalInterval); generalInterval = null }; isGeneralTimerRunning.value = false; sync() }
+      }, 1000)
+    }
     sync()
   }
-  
+
   function addToGeneralList(c) {
     if (!c || generalList.value.find(s => s.country === c)) return
     generalList.value.push({ country: c, time: generalTimeLimit.value })
     ensureStatsCountry(c); stats[c].speeches++; sync()
   }
-  
   function addToModCaucus(c) {
     if (!c || modCaucusList.value.find(s => s.country === c)) return
     modCaucusList.value.push({ country: c, time: modCaucusDefaultSpeakTime.value || 60 }); sync()
   }
-  
   function submitMotion(type, country, details) {
     if (!type || !country) return
     if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
@@ -337,19 +276,16 @@ export const useConferenceStore = defineStore('conference', () => {
     ensureStatsCountry(country); if (!stats[country].motions[type]) stats[country].motions[type] = 0; stats[country].motions[type]++
     sync()
   }
-  
   function approveMotion(i) {
     if (i<0||i>=motionQueue.value.length) return
     currentVotingMotion.value = motionQueue.value[i]; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
   }
-  
   function rejectMotion() {
     currentVotingMotion.value = null
     if (motionQueue.value.length > 0) { sortMotionQueue(); currentVotingMotion.value = motionQueue.value.shift(); screenMode.value = 'motion_voting' }
     else { screenMode.value = 'default'; meetingPhase.value = '正式辯論' }
     sync()
   }
-  
   function executeMotion() {
     const m = currentVotingMotion.value; if (!m) return; clearAllTimers()
     if (m.type==='自由磋商'||m.type==='全體諮詢') {
@@ -364,14 +300,10 @@ export const useConferenceStore = defineStore('conference', () => {
     else if (m.type==='P5閉門協商') {
       screenMode.value='p5_closed'; meetingPhase.value='P5閉門協商'; p5Timer.value=600; sync()
       p5Interval=setInterval(()=>{ if(p5Interval&&p5Timer.value>0){p5Timer.value--;sync()} else{clearInterval(p5Interval);screenMode.value='default';meetingPhase.value='正式辯論';sync()} },1000)
-    } else if (m.type==='唱名表決') {
-      startVotingRollCall()
-    } else if (m.type==='共識決') {
-      screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync()
-    }
+    } else if (m.type==='唱名表決') { startVotingRollCall() }
+    else if (m.type==='共識決') { screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync() }
     currentVotingMotion.value = null; motionQueue.value = []; sync()
   }
-  
   function nextModSpeaker() {
     if (modCaucusList.value.length===0) return
     modCaucusList.value.shift()
@@ -380,7 +312,6 @@ export const useConferenceStore = defineStore('conference', () => {
     else { currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0 }
     sync()
   }
-  
   function toggleModCaucusTimer() {
     if (isModCaucusRunning.value) { modCaucusInterval && clearInterval(modCaucusInterval); isModCaucusRunning.value=false; sync() }
     else {
@@ -396,14 +327,11 @@ export const useConferenceStore = defineStore('conference', () => {
       },1000)
     }
   }
-  
   function addDocument(type, num, title) { if(!type||!num||!title) return; documents.value.push({type,number:num,title}); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
   function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
-
   function saveProgress() { sync() }
-
   function resetMeeting() {
     if (!confirm('⚠️ 確定要重置整個會議嗎？這將清除所有點名、投票、動議與統計紀錄，且無法復原！')) return
     meetingPhase.value = '正式辯論'; screenMode.value = 'default'
