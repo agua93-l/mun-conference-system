@@ -336,21 +336,68 @@ function nextGeneralSpeaker() {
     else { currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0 }
     sync()
   }
-  function toggleModCaucusTimer() {
-    if (isModCaucusRunning.value) { modCaucusInterval && clearInterval(modCaucusInterval); isModCaucusRunning.value=false; sync() }
-    else {
-      if (modCaucusTotalTimer.value<=0) return
-      isModCaucusRunning.value=true; sync()
-      modCaucusInterval=setInterval(()=>{
-        let end=false
-        if (modCaucusTotalTimer.value>0) modCaucusTotalTimer.value--; else end=true
-        if (modCaucusSpeakerTimer.value>0) modCaucusSpeakerTimer.value--
-        else { modCaucusInterval&&clearInterval(modCaucusInterval); isModCaucusRunning.value=false; modCaucusSpeakerTimer.value=0 }
+  // src/stores/conference.js
+// ...（保持之前的內容不變，只修改以下兩個函數）
+
+// ✅ 修正：toggleModCaucusTimer - 總時長與發言人時長同步停止
+function toggleModCaucusTimer() {
+  if (isModCaucusRunning.value) {
+    // 暫停：同時停止總時長和發言人計時器
+    if (modCaucusInterval) { clearInterval(modCaucusInterval); modCaucusInterval = null }
+    isModCaucusRunning.value = false
+    sync()
+  } else {
+    // 開始：同時啟動總時長和發言人計時器
+    if (modCaucusTotalTimer.value <= 0) return
+    isModCaucusRunning.value = true
+    sync()
+    modCaucusInterval = setInterval(() => {
+      let end = false
+      // 總時長倒數
+      if (modCaucusTotalTimer.value > 0) modCaucusTotalTimer.value--
+      else end = true
+      
+      // 發言人時長倒數
+      if (modCaucusSpeakerTimer.value > 0) modCaucusSpeakerTimer.value--
+      else {
+        // 發言人時間到，停止所有計時器
+        if (modCaucusInterval) { clearInterval(modCaucusInterval); modCaucusInterval = null }
+        isModCaucusRunning.value = false
+        modCaucusSpeakerTimer.value = 0
+      }
+      
+      sync()
+      
+      // 總時長結束
+      if (end) {
+        if (modCaucusInterval) { clearInterval(modCaucusInterval); modCaucusInterval = null }
+        isModCaucusRunning.value = false
+        screenMode.value = 'default'
+        meetingPhase.value = '正式辯論'
         sync()
-        if (end) { clearInterval(modCaucusInterval); isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
-      },1000)
-    }
+      }
+    }, 1000)
   }
+}
+
+// ✅ 修正：rejectMotion - 直接刪除，不進入投票
+function rejectMotion() {
+  currentVotingMotion.value = null
+  // 直接從佇列移除，不進入投票流程
+  if (motionQueue.value.length > 0) {
+    sortMotionQueue()
+    // 如果有下一個動議，繼續顯示
+    currentVotingMotion.value = motionQueue.value.shift()
+    screenMode.value = 'motion_voting'
+  } else {
+    // 如果佇列為空，返回正式辯論
+    screenMode.value = 'default'
+    meetingPhase.value = '正式辯論'
+  }
+  sync()
+}
+
+// ...（其他函數保持不變）
   function addDocument(type, num, title) { if(!type||!num||!title) return; documents.value.push({type,number:num,title}); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }

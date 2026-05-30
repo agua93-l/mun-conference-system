@@ -22,7 +22,9 @@
           </div>
         </div>
         <div v-if="store.rollCallFinished" class="roll-call-summary">
-          <div class="attendance-count"><strong>✅ 出席理事國：{{ store.rollCallThresholds.present }} 席</strong></div>
+          <div class="attendance-count">
+            <strong>✅ 出席理事國：{{ store.rollCallThresholds.present }} 席</strong>
+          </div>
           <div class="voting-thresholds">
             <div class="threshold-item"><span>✓ 簡單多數</span><strong>{{ store.rollCallThresholds.simple }}</strong></div>
             <div class="threshold-item"><span>✓✓ 絕對多數 (2/3)</span><strong>{{ store.rollCallThresholds.twoThirds }}</strong></div>
@@ -31,7 +33,7 @@
         </div>
       </section>
 
-      <!-- ✅ 唱名表決模式 -->
+      <!-- 唱名表決模式 -->
       <section v-else-if="store.screenMode === 'voting_roll_call'" class="mode-panel voting-panel">
         <h2 class="voting-title">🗳️ 唱名表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
@@ -61,7 +63,7 @@
         </div>
       </section>
 
-      <!-- ✅ 共識決模式 (自動返回正式辯論) -->
+      <!-- 共識決投票 -->
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
@@ -113,7 +115,8 @@
             <h3 class="mod-list-header">發言順序</h3>
             <div class="mod-list-container">
               <div v-for="(spk, i) in store.modCaucusList" :key="i" class="mod-list-item-xl">
-                <span class="mod-num">{{ i + 1 }}</span><span class="mod-name">{{ spk.country }}</span>
+                <span class="mod-num">{{ i + 1 }}</span>
+                <span class="mod-name">{{ spk.country }}</span>
               </div>
               <div v-if="store.modCaucusList.length === 0" class="mod-empty">暫無順序</div>
             </div>
@@ -121,10 +124,10 @@
         </div>
       </section>
 
-      <!-- 自由磋商/全體諮詢 -->
-      <section v-else-if="store.screenMode === 'caucus'" class="mode-panel caucus-panel">
-        <h2 class="caucus-title">{{ store.meetingPhase }}</h2>
-        <div class="timer-large caucus-timer">{{ formatTime(store.caucusTotalTimer) }}</div>
+      <!-- ✅ 自由磋商/全體諮詢：加大字體 -->
+      <section v-else-if="store.screenMode === 'caucus'" class="mode-panel caucus-panel-large">
+        <h2 class="caucus-title-large">{{ store.meetingPhase }}</h2>
+        <div class="timer-large caucus-timer-large">{{ formatTime(store.caucusTotalTimer) }}</div>
       </section>
 
       <!-- P5閉門 -->
@@ -132,7 +135,9 @@
 
       <!-- 會議暫停 -->
       <section v-else-if="store.screenMode === 'suspended'" class="mode-panel suspended-panel">
-        <div class="suspended-content"><h2 class="suspended-title">⏸️ 會議暫停</h2></div>
+        <div class="suspended-content">
+          <h2 class="suspended-title">⏸️ 會議暫停</h2>
+        </div>
       </section>
 
       <!-- 預設模式 -->
@@ -148,7 +153,7 @@
           </div>
           <div class="right-split">
             <div class="card roll-call-card">
-              <h3> 點名統計與投票門檻</h3>
+              <h3>📊 點名統計與投票門檻</h3>
               <div class="roll-call-brief">
                 <div class="brief-item"><span class="brief-label">出席理事國</span><span class="brief-value present">{{ store.rollCallThresholds.present }}</span></div>
                 <div class="brief-item"><span class="brief-label">遲到</span><span class="brief-value late">{{ Object.values(store.rollCallStatus).filter(s => s === 'late').length }}</span></div>
@@ -189,7 +194,6 @@ function getVoteIcon(vote) {
   return map[vote] || ''
 }
 
-// ✅ 判斷五常是否否決
 const p5VetoReason = computed(() => {
   const vetoers = store.delegates.filter(d => d.p5 && (store.rollCallVoteData[d.name] === 'no' || store.rollCallVoteData[d.name] === 'no_speak'))
   return vetoers.length > 0 ? `五常 (${vetoers.map(v => v.name).join(', ')}) 行使否決權` : ''
@@ -240,6 +244,32 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .consensus-display { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
 .consensus-item { display: flex; flex-direction: column; align-items: center; gap: 10px; background: #1e293b; padding: 30px 40px; border-radius: 12px; min-width: 200px; }
 .consensus-icon { font-size: 3rem; } .consensus-label { font-size: 1.5rem; color: #94a3b8; } .consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
+
+.mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
+.mod-header-large { margin-bottom: 30px; }
+.mod-main-title { font-size: 3rem; font-weight: 800; color: #e2e8f0; margin-bottom: 10px; }
+.mod-topic-large { font-size: 2rem; color: #94a3b8; margin-bottom: 15px; }
+.mod-total-time-label { font-size: 1.2rem; color: #64748b; }
+.mod-total-time-value { font-size: 3rem; font-family: monospace; color: #38bdf8; font-weight: bold; }
+
+.mod-content-split { display: flex; gap: 30px; flex: 1; min-height: 0; }
+.mod-left-panel { flex: 1; display: flex; flex-direction: column; align-items: center; background: #1e293b; border-radius: 16px; padding: 30px 40px; position: relative; }
+.mod-current-label-top { font-size: 1.8rem; color: #94a3b8; margin-bottom: 10px; align-self: flex-start; }
+.mod-current-name { font-size: 3rem; font-weight: 800; color: #fbbf24; margin-bottom: 20px; text-align: center; width: 100%; }
+.mod-current-timer-small { font-size: 3.5rem; font-family: monospace; font-weight: bold; color: #38bdf8; }
+
+.mod-right-panel { flex: 0.8; background: #1e293b; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
+.mod-list-header { font-size: 1.5rem; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
+.mod-list-container { overflow-y: auto; flex: 1; }
+.mod-list-item-xl { display: flex; align-items: center; gap: 15px; padding: 20px; margin-bottom: 10px; background: #0f172a; border-radius: 8px; font-size: 2.5rem; }
+.mod-num { color: #fbbf24; font-weight: bold; min-width: 50px; }
+.mod-name { color: #e2e8f0; }
+.mod-empty { color: #64748b; font-size: 1.2rem; padding: 20px; text-align: center; }
+
+/* ✅ 自由磋商/全體諮詢：加大字體 */
+.caucus-panel-large { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 60vh; }
+.caucus-title-large { font-size: 5rem; font-weight: 900; color: #e2e8f0; margin-bottom: 40px; letter-spacing: 3px; }
+.caucus-timer-large { font-size: 10rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 0; }
 
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
 .right-split { display: flex; flex-direction: column; gap: 20px; }
