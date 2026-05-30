@@ -5,27 +5,21 @@ import { ref, reactive, computed } from 'vue'
 let fbReady = false
 let dbRefFn, setFn, onValueFn, stateRef
 
-// ✅ 確保使用 window.firebase 正確存取
 const ensureFB = () => {
   if (fbReady) return true
   const fb = window.firebase
   if (!fb || !fb.db || !fb.dbMethods) return false
-  
-  // ✅ 直接從 window.firebase 取得方法，避免變數名稱錯誤
   dbRefFn = fb.dbMethods.ref
   setFn = fb.dbMethods.set
   onValueFn = fb.dbMethods.onValue
   stateRef = dbRefFn(fb.db, 'mun_state')
-  
   fbReady = true
   return true
 }
 
-// 自動重試直到 Firebase 載入完成
 const initRetry = setInterval(() => { if (ensureFB()) clearInterval(initRetry) }, 200)
 
 export const useConferenceStore = defineStore('conference', () => {
-  // === 狀態定義 ===
   const meetingPhase = ref('正式辯論')
   const screenMode = ref('default')
   const currentSection = ref('議程 1')
@@ -72,7 +66,6 @@ export const useConferenceStore = defineStore('conference', () => {
     { name: '聯合國人權高专辦', type: 'observer', p5: false }, { name: '中非共和國', type: 'observer', p5: false }
   ]
 
-  // === 輔助函數 ===
   const ensureStatsCountry = (country) => {
     if (!stats[country]) {
       stats[country] = { speeches: 0, motions: { '自由磋商':0, '全體諮詢':0, '有主持核心磋商':0, '暫停會議':0, '恢復會議':0, '介紹決議草案':0, '介紹修正案':0, 'P5閉門協商':0, '唱名表決':0, '共識決':0 } }
@@ -104,7 +97,6 @@ export const useConferenceStore = defineStore('conference', () => {
     })
   }
 
-  // ✅ 計算贊成/反對總數
   const voteCounts = computed(() => {
     let yes = 0, no = 0, abstain = 0
     Object.values(rollCallVoteData).forEach(v => {
@@ -115,57 +107,81 @@ export const useConferenceStore = defineStore('conference', () => {
     return { yes, no, abstain }
   })
 
-  // ✅ 判斷是否通過：贊成>=9 且 無五常反對
   const passedVote = computed(() => {
     const p5Veto = delegates.some(d => d.p5 && (rollCallVoteData[d.name] === 'no' || rollCallVoteData[d.name] === 'no_speak'))
     return !p5Veto && voteCounts.value.yes >= 9
   })
 
-  // === Firebase 監聽器 ===
   const startListener = () => {
     if (!ensureFB()) { setTimeout(startListener, 300); return }
     onValueFn(stateRef, (snap) => {
       if (!snap.exists()) return
       const d = snap.val()
-      meetingPhase.value = d.meetingPhase ?? '正式辯論'
-      screenMode.value = d.screenMode ?? 'default'
-      currentSection.value = d.currentSection ?? '議程 1'
-      if (d.rollCallStatus) Object.assign(rollCallStatus, d.rollCallStatus)
-      isRollCallActive.value = !!d.isRollCallActive
-      rollCallFinished.value = !!d.rollCallFinished
-      recalcThresholds()
-      generalTimeLimit.value = d.generalTimeLimit ?? 60
-      generalList.value = d.generalList || []
-      currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
-      generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
-      isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
       
-      motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
+      // ✅ 避免重複更新相同值（修復競態條件）
+      if (d.meetingPhase !== meetingPhase.value) meetingPhase.value = d.meetingPhase ?? '正式辯論'
+      if (d.screenMode !== screenMode.value) screenMode.value = d.screenMode ?? 'default'
+      if (d.currentSection !== currentSection.value) currentSection.value = d.currentSection ?? '議程 1'
+      
+      if (d.rollCallStatus) {
+        Object.keys(d.rollCallStatus).forEach(key => {
+          if (rollCallStatus[key] !== d.rollCallStatus[key]) rollCallStatus[key] = d.rollCallStatus[key]
+        })
+      }
+      if (d.isRollCallActive !== isRollCallActive.value) isRollCallActive.value = !!d.isRollCallActive
+      if (d.rollCallFinished !== rollCallFinished.value) rollCallFinished.value = !!d.rollCallFinished
+      
+      recalcThresholds()
+      if (d.generalTimeLimit !== generalTimeLimit.value) generalTimeLimit.value = d.generalTimeLimit ?? 60
+      
+      // ✅ 修復 generalList 競態條件：只在內容不同時更新
+      if (JSON.stringify(d.generalList) !== JSON.stringify(generalList.value)) {
+        generalList.value = d.generalList || []
+      }
+      if (d.currentGeneralSpeaker !== currentGeneralSpeaker.value) currentGeneralSpeaker.value = d.currentGeneralSpeaker || ''
+      if (d.generalSpeakerTimer !== generalSpeakerTimer.value) generalSpeakerTimer.value = d.generalSpeakerTimer ?? 0
+      if (d.isGeneralTimerRunning !== isGeneralTimerRunning.value) isGeneralTimerRunning.value = !!d.isGeneralTimerRunning
+      
+      if (JSON.stringify(d.motionQueue) !== JSON.stringify(motionQueue.value)) {
+        motionQueue.value = (d.motionQueue || []).map(m => ({ ...m, details: m.details || {} }))
+      }
       const rawMotion = d.currentVotingMotion || null
-      currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
+      if (JSON.stringify(rawMotion) !== JSON.stringify(currentVotingMotion.value)) {
+        currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
+      }
       sortMotionQueue()
 
-      if (d.rollCallVoteData) Object.keys(d.rollCallVoteData).forEach(k => { rollCallVoteData[k] = d.rollCallVoteData[k] })
-      rollCallVoteStatus.value = d.rollCallVoteStatus || 'voting'
-      votingRound2.value = !!d.votingRound2
+      if (d.rollCallVoteData) {
+        Object.keys(d.rollCallVoteData).forEach(k => {
+          if (rollCallVoteData[k] !== d.rollCallVoteData[k]) rollCallVoteData[k] = d.rollCallVoteData[k]
+        })
+      }
+      if (d.rollCallVoteStatus !== rollCallVoteStatus.value) rollCallVoteStatus.value = d.rollCallVoteStatus || 'voting'
+      if (d.votingRound2 !== votingRound2.value) votingRound2.value = !!d.votingRound2
 
-      if (d.stats) Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
+      if (d.stats) {
+        Object.keys(d.stats).forEach(key => { 
+          ensureStatsCountry(key)
+          Object.assign(stats[key], d.stats[key]) 
+        })
+      }
       
-      documents.value = d.documents || []
-      p5Timer.value = d.p5Timer ?? 0
-      caucusTotalTimer.value = d.caucusTotalTimer ?? 0
-      modCaucusTopic.value = d.modCaucusTopic || ''
-      modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
-      modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
-      modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
-      if (d.modCaucusList) modCaucusList.value = d.modCaucusList
-      currentModSpeaker.value = d.currentModSpeaker || ''
-      isModCaucusRunning.value = !!d.isModCaucusRunning
+      if (JSON.stringify(d.documents) !== JSON.stringify(documents.value)) documents.value = d.documents || []
+      if (d.p5Timer !== p5Timer.value) p5Timer.value = d.p5Timer ?? 0
+      if (d.caucusTotalTimer !== caucusTotalTimer.value) caucusTotalTimer.value = d.caucusTotalTimer ?? 0
+      if (d.modCaucusTopic !== modCaucusTopic.value) modCaucusTopic.value = d.modCaucusTopic || ''
+      if (d.modCaucusTotalTimer !== modCaucusTotalTimer.value) modCaucusTotalTimer.value = d.modCaucusTotalTimer ?? 0
+      if (d.modCaucusSpeakerTimer !== modCaucusSpeakerTimer.value) modCaucusSpeakerTimer.value = d.modCaucusSpeakerTimer ?? 0
+      if (d.modCaucusDefaultSpeakTime !== modCaucusDefaultSpeakTime.value) modCaucusDefaultSpeakTime.value = d.modCaucusDefaultSpeakTime ?? 0
+      if (d.modCaucusList) {
+        if (JSON.stringify(d.modCaucusList) !== JSON.stringify(modCaucusList.value)) modCaucusList.value = d.modCaucusList
+      }
+      if (d.currentModSpeaker !== currentModSpeaker.value) currentModSpeaker.value = d.currentModSpeaker || ''
+      if (d.isModCaucusRunning !== isModCaucusRunning.value) isModCaucusRunning.value = !!d.isModCaucusRunning
     })
   }
   startListener()
 
-  // === 同步函數 ===
   function sync() {
     if (!ensureFB()) return
     recalcThresholds(); sortMotionQueue()
@@ -188,7 +204,6 @@ export const useConferenceStore = defineStore('conference', () => {
     }).catch(() => {})
   }
 
-  // === 工具函數 ===
   function clearAllTimers() {
     [generalInterval, caucusInterval, modCaucusInterval, p5Interval].forEach(t => t && clearInterval(t))
     generalInterval = caucusInterval = modCaucusInterval = p5Interval = null
@@ -209,7 +224,6 @@ export const useConferenceStore = defineStore('conference', () => {
   function changeToLate(country) { if (rollCallStatus[country] === 'present') { rollCallStatus[country] = 'late'; sync() } }
   function endRollCall() { isRollCallActive.value = false; screenMode.value = 'default'; sync() }
 
-  // === 唱名表決 ===
   function startVotingRollCall() {
     rollCallVoteStatus.value = 'voting'
     votingRound2.value = false
@@ -217,68 +231,100 @@ export const useConferenceStore = defineStore('conference', () => {
     screenMode.value = 'voting_roll_call'
     sync()
   }
+  
   function recordRollCallVote(country, voteType) {
     rollCallVoteData[country] = voteType
     sync()
   }
+
   function nextVotingRound() {
     votingRound2.value = true
     sync()
   }
+
   function endVotingRollCall() {
     rollCallVoteStatus.value = 'finished'
     sync()
   }
+  
   function resetVoting() {
     delegates.forEach(d => { delete rollCallVoteData[d.name] })
     rollCallVoteStatus.value = 'voting'; votingRound2.value = false
     sync()
   }
 
-  // === 共識決 ===
   function finishConsensus() {
     screenMode.value = 'default'
     meetingPhase.value = '正式辯論'
     sync()
   }
 
-  // === 其他功能 ===
-  function toggleGeneralTimer() {
-    if (isGeneralTimerRunning.value) { generalInterval && clearInterval(generalInterval); isGeneralTimerRunning.value = false; sync() }
-    else {
-      if (generalSpeakerTimer.value <= 0) return
-      isGeneralTimerRunning.value = true; sync()
-      generalInterval = setInterval(() => { if (generalSpeakerTimer.value > 0) { generalSpeakerTimer.value--; sync() } else toggleGeneralTimer() }, 1000)
-    }
-  }
+  // ✅ 修復：nextGeneralSpeaker 競態條件
   function nextGeneralSpeaker() {
     if (generalList.value.length === 0) return
-    generalList.value.shift()
-    currentGeneralSpeaker.value = generalList.value[0]?.country || ''
-    generalSpeakerTimer.value = generalList.value[0]?.time || 0
-    isGeneralTimerRunning.value = false; generalInterval && clearInterval(generalInterval); sync()
+    
+    // 1. 先複製清單，避免直接修改響應式物件導致重複觸發
+    const newList = [...generalList.value]
+    newList.shift() // 移除第一個
+    
+    // 2. 計算新的當前發言人與計時器
+    const next = newList[0]
+    const newSpeaker = next?.country || ''
+    const newTimer = next?.time || 0
+    
+    // 3. 一次性更新所有狀態
+    generalList.value = newList
+    currentGeneralSpeaker.value = newSpeaker
+    generalSpeakerTimer.value = newTimer
+    isGeneralTimerRunning.value = false
+    
+    // 4. 清除計時器
+    if (generalInterval) {
+      clearInterval(generalInterval)
+      generalInterval = null
+    }
+    
+    // 5. 最後同步到 Firebase（只呼叫一次）
+    sync()
   }
+
   function yieldToDelegate(target) {
     if (!target || !currentGeneralSpeaker.value) return
     const rem = generalSpeakerTimer.value
-    generalList.value = generalList.value.filter(s => s.country !== currentGeneralSpeaker.value)
-    currentGeneralSpeaker.value = target; generalSpeakerTimer.value = rem
-    generalInterval && clearInterval(generalInterval)
-    if (rem > 0) {
-      isGeneralTimerRunning.value = true
-      generalInterval = setInterval(() => { if (generalSpeakerTimer.value > 0) { generalSpeakerTimer.value--; sync() } else { generalInterval && clearInterval(generalInterval); isGeneralTimerRunning.value = false; sync() } }, 1000)
-    }
+    const newList = generalList.value.filter(s => s.country !== currentGeneralSpeaker.value)
+    generalList.value = newList
+    currentGeneralSpeaker.value = target
+    generalSpeakerTimer.value = rem
+    isGeneralTimerRunning.value = true
+    
+    if (generalInterval) clearInterval(generalInterval)
+    generalInterval = setInterval(() => {
+      if (generalSpeakerTimer.value > 0) {
+        generalSpeakerTimer.value--
+        sync()
+      } else {
+        if (generalInterval) {
+          clearInterval(generalInterval)
+          generalInterval = null
+        }
+        isGeneralTimerRunning.value = false
+        sync()
+      }
+    }, 1000)
     sync()
   }
+  
   function addToGeneralList(c) {
     if (!c || generalList.value.find(s => s.country === c)) return
     generalList.value.push({ country: c, time: generalTimeLimit.value })
     ensureStatsCountry(c); stats[c].speeches++; sync()
   }
+  
   function addToModCaucus(c) {
     if (!c || modCaucusList.value.find(s => s.country === c)) return
     modCaucusList.value.push({ country: c, time: modCaucusDefaultSpeakTime.value || 60 }); sync()
   }
+  
   function submitMotion(type, country, details) {
     if (!type || !country) return
     if (!delegates.some(d => d.name === country && d.type === 'member')) return alert('⚠️ 僅理事國可動議')
@@ -291,16 +337,19 @@ export const useConferenceStore = defineStore('conference', () => {
     ensureStatsCountry(country); if (!stats[country].motions[type]) stats[country].motions[type] = 0; stats[country].motions[type]++
     sync()
   }
+  
   function approveMotion(i) {
     if (i<0||i>=motionQueue.value.length) return
     currentVotingMotion.value = motionQueue.value[i]; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
   }
+  
   function rejectMotion() {
     currentVotingMotion.value = null
     if (motionQueue.value.length > 0) { sortMotionQueue(); currentVotingMotion.value = motionQueue.value.shift(); screenMode.value = 'motion_voting' }
     else { screenMode.value = 'default'; meetingPhase.value = '正式辯論' }
     sync()
   }
+  
   function executeMotion() {
     const m = currentVotingMotion.value; if (!m) return; clearAllTimers()
     if (m.type==='自由磋商'||m.type==='全體諮詢') {
@@ -322,6 +371,7 @@ export const useConferenceStore = defineStore('conference', () => {
     }
     currentVotingMotion.value = null; motionQueue.value = []; sync()
   }
+  
   function nextModSpeaker() {
     if (modCaucusList.value.length===0) return
     modCaucusList.value.shift()
@@ -330,6 +380,7 @@ export const useConferenceStore = defineStore('conference', () => {
     else { currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0 }
     sync()
   }
+  
   function toggleModCaucusTimer() {
     if (isModCaucusRunning.value) { modCaucusInterval && clearInterval(modCaucusInterval); isModCaucusRunning.value=false; sync() }
     else {
@@ -345,15 +396,14 @@ export const useConferenceStore = defineStore('conference', () => {
       },1000)
     }
   }
+  
   function addDocument(type, num, title) { if(!type||!num||!title) return; documents.value.push({type,number:num,title}); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
   function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
 
-  // ✅ 儲存進度
   function saveProgress() { sync() }
 
-  // ✅ 重置會議
   function resetMeeting() {
     if (!confirm('⚠️ 確定要重置整個會議嗎？這將清除所有點名、投票、動議與統計紀錄，且無法復原！')) return
     meetingPhase.value = '正式辯論'; screenMode.value = 'default'
