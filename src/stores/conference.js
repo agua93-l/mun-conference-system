@@ -223,28 +223,37 @@ export const useConferenceStore = defineStore('conference', () => {
     }
   }
 
-
+ 
+// ✅ 修正：nextGeneralSpeaker - 確保不會跳過第一個發言人
 function nextGeneralSpeaker() {
-  if (generalList.value.length === 0) return
-  
-  // ✅ 如果當前沒有發言人，直接取第一個（不移除）
-  if (!currentGeneralSpeaker.value) {
-    const first = generalList.value[0]
-    currentGeneralSpeaker.value = first?.country || ''
-    generalSpeakerTimer.value = first?.time || 0
+  if (generalList.value.length === 0) {
+    // 名單為空，清空所有狀態
+    currentGeneralSpeaker.value = ''
+    generalSpeakerTimer.value = 0
     isGeneralTimerRunning.value = false
     if (generalInterval) { clearInterval(generalInterval); generalInterval = null }
     sync()
     return
   }
   
-  // ✅ 如果當前有發言人，移除當前並取下一個
-  const newList = [...generalList.value]
-  newList.shift() // 移除第一個（當前發言人）
-  const next = newList[0]
-  generalList.value = newList
-  currentGeneralSpeaker.value = next?.country || ''
-  generalSpeakerTimer.value = next?.time || 0
+  // ✅ 檢查當前是否為空（包括 null, undefined, 空字串）
+  const isEmpty = !currentGeneralSpeaker.value || currentGeneralSpeaker.value === '' || currentGeneralSpeaker.value === null
+  
+  if (isEmpty) {
+    // 第一次點擊：取第一個，不移除
+    const first = generalList.value[0]
+    currentGeneralSpeaker.value = first?.country || ''
+    generalSpeakerTimer.value = first?.time || 0
+  } else {
+    // 已有當前發言人：移除第一個，取下一個
+    const newList = [...generalList.value]
+    newList.shift()
+    const next = newList[0]
+    generalList.value = newList
+    currentGeneralSpeaker.value = next?.country || ''
+    generalSpeakerTimer.value = next?.time || 0
+  }
+  
   isGeneralTimerRunning.value = false
   if (generalInterval) { clearInterval(generalInterval); generalInterval = null }
   sync()
