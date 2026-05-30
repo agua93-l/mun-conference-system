@@ -7,26 +7,18 @@ import StatsView from '../views/StatsView.vue'
 const routes = [
   { path: '/', name: 'Chair', component: ChairView, meta: { requiresAuth: true } },
   { path: '/login', name: 'Login', component: LoginView },
-  { path: '/screen', name: 'Screen', component: ScreenView },  // ✅ 確保這是 ScreenView
+  { path: '/screen', name: 'Screen', component: ScreenView },
   { path: '/stats', name: 'Stats', component: StatsView, meta: { requiresAuth: true } }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach(async (to, from) => {
-  const waitForAuth = () => {
-    return new Promise((resolve) => {
-      if (window.auth && window.auth.currentUser) {
-        resolve()
-      } else if (window.auth) {
-        window.auth.onAuthStateChanged(() => {
-          resolve()
-        })
-      } else {
-        setTimeout(waitForAuth, 100)
-      }
-    })
-  }
+  const waitForAuth = () => new Promise(resolve => {
+    if (window.auth?.currentUser) resolve()
+    else if (window.auth) window.auth.onAuthStateChanged(resolve)
+    else setTimeout(waitForAuth, 100)
+  })
   
   if (to.meta.requiresAuth) {
     await waitForAuth()
