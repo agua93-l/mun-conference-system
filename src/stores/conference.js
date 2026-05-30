@@ -328,18 +328,34 @@ function nextGeneralSpeaker() {
     else if (m.type==='共識決') { screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync() }
     currentVotingMotion.value = null; motionQueue.value = []; sync()
   }
+    // ✅ 修正：nextModSpeaker 正確處理「無」的初始狀態
   function nextModSpeaker() {
-    if (modCaucusList.value.length===0) return
-    modCaucusList.value.shift()
-    const n = modCaucusList.value[0]
-    if (n) { currentModSpeaker.value=n.country; modCaucusSpeakerTimer.value=n.time }
-    else { currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0 }
+    if (modCaucusList.value.length === 0) return
+
+    // 檢查當前是否為空（包含 '無', '', null, undefined）
+    const isEmpty = !currentModSpeaker.value || 
+                    currentModSpeaker.value === '' || 
+                    currentModSpeaker.value === '無' || 
+                    currentModSpeaker.value === null
+
+    if (isEmpty) {
+      // 第一次點擊：直接設為第一位，不移除名單
+      const first = modCaucusList.value[0]
+      currentModSpeaker.value = first?.country || ''
+      modCaucusSpeakerTimer.value = first?.time || 0
+    } else {
+      // 已有發言人：移除當前，切換到下一位
+      modCaucusList.value.shift()
+      const next = modCaucusList.value[0]
+      currentModSpeaker.value = next?.country || ''
+      modCaucusSpeakerTimer.value = next?.time || 0
+    }
+
+    // 切換發言人時暫停計時器
+    if (modCaucusInterval) { clearInterval(modCaucusInterval); modCaucusInterval = null }
     sync()
   }
-  // src/stores/conference.js
-// ...（保持之前的內容不變，只修改以下兩個函數）
-
-// ✅ 修正：toggleModCaucusTimer - 總時長與發言人時長同步停止
+  
 function toggleModCaucusTimer() {
   if (isModCaucusRunning.value) {
     // 暫停：同時停止總時長和發言人計時器

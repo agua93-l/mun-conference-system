@@ -271,6 +271,26 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .caucus-title-large { font-size: 5rem; font-weight: 900; color: #e2e8f0; margin-bottom: 40px; letter-spacing: 3px; }
 .caucus-timer-large { font-size: 10rem; font-family: monospace; font-weight: bold; color: #38bdf8; margin: 0; }
 
+/* ✅ 動議表決：投影專用加大字體 */
+.motion-voting-panel { padding: 80px 20px; }
+.voting-title {
+  font-size: 5.5rem; /* 加大 */
+  font-weight: 900;
+  color: #fbbf24;
+  margin-bottom: 40px;
+  letter-spacing: 4px;
+  text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.motion-detail-large {
+  font-size: 3.2rem; /* 加大 */
+  line-height: 1.8;
+  margin-bottom: 50px;
+  font-weight: 600;
+}
+.motion-type, .motion-country, .motion-topic, .motion-duration {
+  margin: 15px 0;
+}
+
 .info-grid-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); }
 .right-split { display: flex; flex-direction: column; gap: 20px; }
 .card { background: #1e293b; padding: 25px; border-radius: 12px; }
