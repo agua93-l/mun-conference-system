@@ -17,6 +17,11 @@ const ensureFB = () => {
   return true
 }
 
+const ensureStorage = () => {
+  const fb = window.firebase
+  return fb && fb.storage && fb.storageMethods ? fb : null
+}
+
 const initRetry = setInterval(() => { if (ensureFB()) clearInterval(initRetry) }, 200)
 
 export const useConferenceStore = defineStore('conference', () => {
@@ -40,6 +45,7 @@ export const useConferenceStore = defineStore('conference', () => {
   const votingRound2 = ref(false)
   
   const consensusResult = ref(null)
+  const speechNotes = ref([])
 
   const stats = reactive({})
   const documents = ref([])
@@ -70,7 +76,7 @@ export const useConferenceStore = defineStore('conference', () => {
 
   const ensureStatsCountry = (country) => {
     if (!stats[country]) {
-      stats[country] = { speeches: 0, motions: { '自由磋商':0, '全體諮詢':0, '有主持核心磋商':0, '暫停會議':0, '恢復會議':0, '介紹決議草案':0, '介紹修正案':0, 'P5閉門協商':0, '唱名表決':0, '共識決':0 } }
+      stats[country] = { speeches: 0, motionsPassed: 0, motions: { '自由磋商':0, '全體諮詢':0, '有主持核心磋商':0, '暫停會議':0, '恢復會議':0, '介紹決議草案':0, '介紹修正案':0, 'P5閉門協商':0, '唱名表決':0, '共識決':0 } }
     }
   }
 
@@ -140,7 +146,8 @@ export const useConferenceStore = defineStore('conference', () => {
       if (d.votingRound2 !== votingRound2.value) votingRound2.value = !!d.votingRound2
       if (d.consensusResult !== consensusResult.value) consensusResult.value = d.consensusResult ?? null
       if (d.stats) Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
-      if (JSON.stringify(d.documents) !== JSON.stringify(documents.value)) documents.value = d.documents || []
+      if (JSON.stringify(d.documents) !== JSON.stringify(documents.value)) documents.value = (d.documents || []).map(doc => ({ status: doc.status || 'approved', ...doc }))
+      if (JSON.stringify(d.speechNotes) !== JSON.stringify(speechNotes.value)) speechNotes.value = d.speechNotes || []
       if (d.p5Timer !== p5Timer.value) p5Timer.value = d.p5Timer ?? 0
       if (d.caucusTotalTimer !== caucusTotalTimer.value) caucusTotalTimer.value = d.caucusTotalTimer ?? 0
       if (d.modCaucusTopic !== modCaucusTopic.value) modCaucusTopic.value = d.modCaucusTopic || ''
@@ -173,7 +180,7 @@ export const useConferenceStore = defineStore('conference', () => {
       isModCaucusRunning: isModCaucusRunning.value,
       rollCallVoteData: JSON.parse(JSON.stringify(rollCallVoteData)),
       rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value,
-      consensusResult: consensusResult.value
+      consensusResult: consensusResult.value, speechNotes: JSON.parse(JSON.stringify(speechNotes.value))
     }).catch(() => {})
   }
 
@@ -307,7 +314,9 @@ function nextGeneralSpeaker() {
   }
   function approveMotion(i) {
     if (i<0||i>=motionQueue.value.length) return
-    currentVotingMotion.value = motionQueue.value[i]; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
+    const m = motionQueue.value[i]
+    ensureStatsCountry(m.country); stats[m.country].motionsPassed = (stats[m.country].motionsPassed || 0) + 1
+    currentVotingMotion.value = m; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
   }
   function executeMotion() {
     const m = currentVotingMotion.value; if (!m) return; clearAllTimers()
@@ -413,7 +422,32 @@ function rejectMotion() {
 }
 
 // ...（其他函數保持不變）
-  function addDocument(type, num, title) { if(!type||!num||!title) return; documents.value.push({type,number:num,title}); sync() }
+  async function uploadDocument(type, num, title, file) {
+    if (!type || !num || !title || !file) return
+    const fb = ensureStorage()
+    if (!fb) { alert('⚠️ 檔案儲存服務尚未就緒，請稍後再試'); return }
+    try {
+      const path = `documents/${Date.now()}_${file.name}`
+      const fileRef = fb.storageMethods.ref(fb.storage, path)
+      await fb.storageMethods.uploadBytes(fileRef, file)
+      const fileURL = await fb.storageMethods.getDownloadURL(fileRef)
+      documents.value.push({ type, number: num, title, fileURL, path, status: 'pending', uploadedAt: Date.now() })
+      sync()
+    } catch (e) {
+      alert('❌ 上傳失敗，請重試')
+    }
+  }
+  function reviewDocument(i, status) {
+    if (!documents.value[i]) return
+    documents.value[i].status = status
+    sync()
+  }
+  function addSpeechNote(country, phase, note) {
+    if (!country || !note) return
+    speechNotes.value.unshift({ id: Date.now(), country, phase: phase || meetingPhase.value, note, timestamp: Date.now() })
+    sync()
+  }
+  function deleteSpeechNote(id) { speechNotes.value = speechNotes.value.filter(n => n.id !== id); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
   function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
@@ -423,7 +457,7 @@ function rejectMotion() {
     meetingPhase.value = '正式辯論'; screenMode.value = 'default'
     isRollCallActive.value = false; rollCallFinished.value = false
     isGeneralTimerRunning.value = false; isModCaucusRunning.value = false
-    generalList.value = []; motionQueue.value = []; documents.value = []; modCaucusList.value = []
+    generalList.value = []; motionQueue.value = []; documents.value = []; modCaucusList.value = []; speechNotes.value = []
     Object.keys(rollCallStatus).forEach(key => delete rollCallStatus[key])
     Object.keys(stats).forEach(key => delete stats[key])
     Object.keys(rollCallVoteData).forEach(key => delete rollCallVoteData[key])
@@ -444,9 +478,9 @@ function rejectMotion() {
     p5Timer, caucusTotalTimer, modCaucusTopic, modCaucusTotalTimer, modCaucusSpeakerTimer, modCaucusDefaultSpeakTime, modCaucusList, currentModSpeaker, isModCaucusRunning,
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
-    addDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
+    uploadDocument, reviewDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
     startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus,
-    consensusResult, setConsensusResult,
+    consensusResult, setConsensusResult, speechNotes, addSpeechNote, deleteSpeechNote,
     saveProgress, resetMeeting, recalcThresholds, sync
   }
 })
