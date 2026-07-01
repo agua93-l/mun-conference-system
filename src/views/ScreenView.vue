@@ -67,22 +67,9 @@
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
-        <div class="consensus-display">
-          <div class="consensus-item">
-            <span class="consensus-icon">✅</span>
-            <span class="consensus-label">贊成</span>
-            <span class="consensus-value">{{ store.votingYes }}</span>
-          </div>
-          <div class="consensus-item">
-            <span class="consensus-icon">⚪</span>
-            <span class="consensus-label">棄權</span>
-            <span class="consensus-value">{{ store.votingAbstain }}</span>
-          </div>
-          <div class="consensus-item">
-            <span class="consensus-icon">❌</span>
-            <span class="consensus-label">反對</span>
-            <span class="consensus-value">{{ store.votingNo }}</span>
-          </div>
+        <div v-if="!store.consensusResult" class="consensus-pending">尋求共識中...</div>
+        <div v-else class="result-banner" :class="{ passed: store.consensusResult === 'pass' }">
+          <h3>{{ store.consensusResult === 'pass' ? '✅ 共識決通過' : '❌ 共識決未通過' }}</h3>
         </div>
       </section>
 
@@ -168,8 +155,11 @@
             <div class="card documents-card">
               <h3>📜 場上文件</h3>
               <div class="doc-list">
-                <div v-for="doc in store.documents" :key="doc.number" class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</div>
-                <div v-if="store.documents.length === 0" class="empty">無公告文件</div>
+                <div v-for="doc in approvedDocuments" :key="doc.number" class="doc-tag">
+                  [{{ doc.type }} {{ doc.number }}] {{ doc.title }}
+                  <a v-if="doc.fileURL" :href="doc.fileURL" target="_blank" class="doc-download">📥</a>
+                </div>
+                <div v-if="approvedDocuments.length === 0" class="empty">無公告文件</div>
               </div>
             </div>
           </div>
@@ -193,6 +183,8 @@ function getVoteIcon(vote) {
   const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '⚪', pass: '⏭️' }
   return map[vote] || ''
 }
+
+const approvedDocuments = computed(() => store.documents.filter(d => d.status === 'approved'))
 
 const p5VetoReason = computed(() => {
   const vetoers = store.delegates.filter(d => d.p5 && (store.rollCallVoteData[d.name] === 'no' || store.rollCallVoteData[d.name] === 'no_speak'))
@@ -241,9 +233,7 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .result-banner p { font-size: 1.5rem; margin: 5px 0; }
 .reason { color: #f87171; font-weight: bold; }
 
-.consensus-display { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
-.consensus-item { display: flex; flex-direction: column; align-items: center; gap: 10px; background: #1e293b; padding: 30px 40px; border-radius: 12px; min-width: 200px; }
-.consensus-icon { font-size: 3rem; } .consensus-label { font-size: 1.5rem; color: #94a3b8; } .consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
+.consensus-pending { font-size: 2rem; color: #94a3b8; margin-top: 40px; }
 
 .mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
 .mod-header-large { margin-bottom: 30px; }
@@ -309,5 +299,6 @@ h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; colo
 .threshold-brief-item span { display: block; font-size: 0.95rem; color: #94a3b8; margin-bottom: 5px; } .threshold-brief-item strong { font-size: 1.8rem; color: #fbbf24; }
 .doc-list { display: flex; flex-wrap: wrap; gap: 12px; }
 .doc-tag { background: #334155; padding: 12px 20px; border-radius: 8px; font-size: 1.1rem; font-weight: 500; }
+.doc-download { margin-left: 8px; text-decoration: none; }
 .empty { color: #64748b; padding: 20px; text-align: center; font-size: 1.2rem; }
 </style>

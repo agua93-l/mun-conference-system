@@ -55,9 +55,13 @@
         <!-- 共識決控制區 -->
         <div class="card" v-else-if="store.screenMode === 'voting_consensus'">
           <h3>🤝 共識決投票</h3>
-          <div class="consensus-controls">
-            <button class="btn-consensus pass" @click="showConsensusResult(true)">✅ 通過</button>
-            <button class="btn-consensus fail" @click="showConsensusResult(false)">❌ 不通過</button>
+          <div v-if="!store.consensusResult" class="consensus-controls">
+            <button class="btn-consensus pass" @click="store.setConsensusResult('pass')">✅ 通過</button>
+            <button class="btn-consensus fail" @click="store.setConsensusResult('fail')">❌ 不通過</button>
+          </div>
+          <div v-else class="consensus-result-box">
+            <p>結果已同步至代表端：<strong>{{ store.consensusResult === 'pass' ? '✅ 通過' : '❌ 不通過' }}</strong></p>
+            <button class="btn-return-debate" @click="store.finishConsensus()">✅ 返回辯論</button>
           </div>
         </div>
 
@@ -160,13 +164,59 @@
         </div>
 
         <div class="card">
-          <h3>📄 場上文件公告</h3>
+          <h3>📄 決議草案／修正案上傳與審核</h3>
           <div class="input-row">
             <select v-model="docType"><option value="WD">工作文件 (WD)</option><option value="DR">決議草案 (DR)</option><option value="A">修正案 (A)</option></select>
             <input v-model="docNumber" placeholder="編號 (如 1.1)" /><input v-model="docTitle" placeholder="標題/議題" />
-            <button @click="store.addDocument(docType, docNumber, docTitle); docNumber=''; docTitle=''">公告</button>
           </div>
-          <div class="doc-preview"><div v-for="doc in store.documents" :key="doc.number" class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</div></div>
+          <div class="input-row">
+            <input ref="docFileInput" type="file" @change="onDocFileChange" />
+            <button :disabled="!docType || !docNumber || !docTitle || !docFile || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
+          </div>
+          <div class="doc-review-list">
+            <div v-for="(doc, i) in store.documents" :key="doc.number + doc.type + i" class="doc-review-item" :class="doc.status">
+              <div class="doc-review-main">
+                <span class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</span>
+                <a v-if="doc.fileURL" :href="doc.fileURL" target="_blank" class="doc-link">📎 檔案</a>
+                <span class="doc-status-badge" :class="doc.status">{{ doc.status === 'pending' ? '⏳ 待審' : doc.status === 'rejected' ? '❌ 已退回' : '✅ 已通過' }}</span>
+              </div>
+              <div class="doc-review-actions" v-if="doc.status === 'pending'">
+                <button class="btn-pass" @click="store.reviewDocument(i, 'approved')">✓ 通過</button>
+                <button class="btn-reject" @click="store.reviewDocument(i, 'rejected')">✗ 退回</button>
+              </div>
+            </div>
+            <div v-if="store.documents.length === 0" class="empty">尚無公告文件</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>📝 發言紀錄</h3>
+          <div class="input-row" v-if="activeSpeaker">
+            <span class="active-speaker-tag">{{ activeSpeaker }}</span>
+            <input v-model="speechNoteText" placeholder="輸入對本次發言的紀錄與想法..." @keyup.enter="submitSpeechNote" />
+            <button :disabled="!speechNoteText" @click="submitSpeechNote">➕ 加入</button>
+          </div>
+          <div v-else class="empty">目前無發言人</div>
+          <div class="speech-notes-list">
+            <div v-for="n in store.speechNotes" :key="n.id" class="speech-note-item">
+              <div class="speech-note-head"><strong>{{ n.country }}</strong><span class="note-phase">{{ n.phase }}</span></div>
+              <p class="note-text">{{ n.note }}</p>
+              <button class="btn-delete-note" @click="store.deleteSpeechNote(n.id)">🗑️</button>
+            </div>
+            <div v-if="store.speechNotes.length === 0" class="empty">尚無發言紀錄</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>📊 各國統計（發言 / 動議成功）</h3>
+          <div class="mini-stats-list">
+            <div v-for="c in sortedMiniStats" :key="c.name" class="mini-stats-row">
+              <span class="mini-stats-name">{{ c.name }}</span>
+              <span class="mini-stats-val">🎤 {{ c.speeches }}</span>
+              <span class="mini-stats-val">✅ {{ c.motionsPassed }}</span>
+            </div>
+            <div v-if="sortedMiniStats.length === 0" class="empty">尚無統計資料</div>
+          </div>
         </div>
 
         <div class="card" v-if="store.screenMode === 'mod_caucus'">
@@ -207,7 +257,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConferenceStore } from '../stores/conference'
 
@@ -217,7 +267,30 @@ const selCountry = ref(''); const yieldTarget = ref(''); const mType = ref(''); 
 const modSelCountry = ref(''); const timeLimitInput = ref(60); const docType = ref('WD'); const docNumber = ref(''); const docTitle = ref('')
 const currentTime = ref(''); const selectedSection = ref('議程 1')
 const showVoteModal = ref(false); const votingTargetCountry = ref('')
+const docFile = ref(null); const docFileInput = ref(null); const docUploading = ref(false)
+const speechNoteText = ref('')
 let clockInterval = null
+
+const activeSpeaker = computed(() => store.currentModSpeaker || store.currentGeneralSpeaker || '')
+const sortedMiniStats = computed(() => Object.entries(store.stats)
+  .map(([name, v]) => ({ name, speeches: v.speeches, motionsPassed: v.motionsPassed || 0 }))
+  .sort((a, b) => b.speeches - a.speeches))
+
+function onDocFileChange(e) { docFile.value = e.target.files[0] || null }
+async function submitDocUpload() {
+  if (!docFile.value) return
+  docUploading.value = true
+  await store.uploadDocument(docType.value, docNumber.value, docTitle.value, docFile.value)
+  docUploading.value = false
+  docNumber.value = ''; docTitle.value = ''; docFile.value = null
+  if (docFileInput.value) docFileInput.value.value = ''
+}
+function submitSpeechNote() {
+  if (!speechNoteText.value || !activeSpeaker.value) return
+  const phase = store.currentModSpeaker ? '有主持核心磋商' : '常規發言'
+  store.addSpeechNote(activeSpeaker.value, phase, speechNoteText.value)
+  speechNoteText.value = ''
+}
 
 function formatTime(sec) { const m = Math.floor((sec || 0) / 60); const s = (sec || 0) % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 function handleLogout() { const { auth, authMethods } = window.firebase; authMethods.signOut(auth).then(() => { router.push('/login') }) }
@@ -226,7 +299,6 @@ async function clearStats() { if (!confirm('⚠️ 確定要清除統計？')) r
 function openVoteModal(country) { votingTargetCountry.value = country; showVoteModal.value = true }
 function setVote(voteType) { store.recordRollCallVote(votingTargetCountry.value, voteType); showVoteModal.value = false }
 function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'🗣️ 反對並發言', abstain:'⚪ 棄權', pass:'⏭️ 跳過' }[vote] || '' }
-function showConsensusResult(passed) { alert(passed ? '✅ 共識決：通過' : '❌ 共識決：不通過'); store.finishConsensus() }
 function handleSaveProgress() { store.saveProgress(); alert('✅ 會議進度已儲存 (已同步至雲端)') }
 
 onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
@@ -314,6 +386,8 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-clear { padding: 4px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
 
 .consensus-controls { display: flex; gap: 10px; margin-top: 10px; }
+.consensus-result-box { text-align: center; padding: 10px 0; }
+.consensus-result-box p { font-size: 1.1rem; margin-bottom: 15px; }
 .btn-consensus { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
 .btn-consensus.pass { background: #4caf50; color: white; }
 .btn-consensus.fail { background: #f44336; color: white; }
@@ -329,4 +403,31 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .vote-btn.no-speak { background: #e57373; color: white; }
 .vote-btn.abstain { background: #bdbdbd; color: white; }
 .vote-btn.pass { background: #ff9800; color: white; }
+
+.doc-review-list { max-height: 220px; overflow-y: auto; margin-top: 10px; }
+.doc-review-item { padding: 10px; background: #f9f9f9; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #ccc; }
+.doc-review-item.pending { border-left-color: #ff9800; }
+.doc-review-item.approved { border-left-color: #4caf50; }
+.doc-review-item.rejected { border-left-color: #f44336; opacity: 0.7; }
+.doc-review-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.doc-link { color: #1565c0; text-decoration: none; font-size: 0.85rem; }
+.doc-status-badge { font-size: 0.8rem; font-weight: bold; margin-left: auto; }
+.doc-status-badge.pending { color: #ff9800; }
+.doc-status-badge.approved { color: #4caf50; }
+.doc-status-badge.rejected { color: #f44336; }
+.doc-review-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+.active-speaker-tag { background: #673ab7; color: white; padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; }
+.speech-notes-list { max-height: 220px; overflow-y: auto; margin-top: 10px; }
+.speech-note-item { position: relative; background: #f9f9f9; padding: 10px 30px 10px 10px; border-radius: 6px; margin-bottom: 8px; }
+.speech-note-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.note-phase { font-size: 0.75rem; color: #888; }
+.note-text { margin: 0; font-size: 0.9rem; white-space: pre-wrap; }
+.btn-delete-note { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; opacity: 0.5; }
+.btn-delete-note:hover { opacity: 1; }
+
+.mini-stats-list { max-height: 220px; overflow-y: auto; }
+.mini-stats-row { display: flex; align-items: center; gap: 15px; padding: 8px; border-bottom: 1px solid #eee; }
+.mini-stats-name { font-weight: 600; flex: 1; }
+.mini-stats-val { font-size: 0.9rem; color: #555; }
 </style>

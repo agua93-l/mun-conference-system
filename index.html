@@ -13,6 +13,7 @@
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
       import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'
       import { getDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
+      import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js'
       
       const firebaseConfig = {
         apiKey: "AIzaSyBv7OleZaWKZTJS_TFW2E3u4ln5Rs7nkWo",
@@ -31,10 +32,16 @@
         app,
         auth: getAuth(app),
         db: getDatabase(app),
+        storage: getStorage(app),
         authMethods: {
           onAuthStateChanged,
           signInWithEmailAndPassword,
           signOut
+        },
+        storageMethods: {
+          ref: storageRef,
+          uploadBytes,
+          getDownloadURL
         },
         dbMethods: {
           ref: (db, path) => {
