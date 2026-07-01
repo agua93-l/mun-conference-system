@@ -155,8 +155,11 @@
             <div class="card documents-card">
               <h3>📜 場上文件</h3>
               <div class="doc-list">
-                <div v-for="doc in store.documents" :key="doc.number" class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</div>
-                <div v-if="store.documents.length === 0" class="empty">無公告文件</div>
+                <div v-for="doc in approvedDocuments" :key="doc.number" class="doc-tag">
+                  [{{ doc.type }} {{ doc.number }}] {{ doc.title }}
+                  <a v-if="doc.fileURL" :href="doc.fileURL" target="_blank" class="doc-download">📥</a>
+                </div>
+                <div v-if="approvedDocuments.length === 0" class="empty">無公告文件</div>
               </div>
             </div>
           </div>
@@ -180,6 +183,8 @@ function getVoteIcon(vote) {
   const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '⚪', pass: '⏭️' }
   return map[vote] || ''
 }
+
+const approvedDocuments = computed(() => store.documents.filter(d => d.status === 'approved'))
 
 const p5VetoReason = computed(() => {
   const vetoers = store.delegates.filter(d => d.p5 && (store.rollCallVoteData[d.name] === 'no' || store.rollCallVoteData[d.name] === 'no_speak'))
@@ -294,5 +299,6 @@ h3 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; colo
 .threshold-brief-item span { display: block; font-size: 0.95rem; color: #94a3b8; margin-bottom: 5px; } .threshold-brief-item strong { font-size: 1.8rem; color: #fbbf24; }
 .doc-list { display: flex; flex-wrap: wrap; gap: 12px; }
 .doc-tag { background: #334155; padding: 12px 20px; border-radius: 8px; font-size: 1.1rem; font-weight: 500; }
+.doc-download { margin-left: 8px; text-decoration: none; }
 .empty { color: #64748b; padding: 20px; text-align: center; font-size: 1.2rem; }
 </style>
