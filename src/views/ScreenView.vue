@@ -67,22 +67,9 @@
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
         <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
-        <div class="consensus-display">
-          <div class="consensus-item">
-            <span class="consensus-icon">✅</span>
-            <span class="consensus-label">贊成</span>
-            <span class="consensus-value">{{ store.votingYes }}</span>
-          </div>
-          <div class="consensus-item">
-            <span class="consensus-icon">⚪</span>
-            <span class="consensus-label">棄權</span>
-            <span class="consensus-value">{{ store.votingAbstain }}</span>
-          </div>
-          <div class="consensus-item">
-            <span class="consensus-icon">❌</span>
-            <span class="consensus-label">反對</span>
-            <span class="consensus-value">{{ store.votingNo }}</span>
-          </div>
+        <div v-if="!store.consensusResult" class="consensus-pending">尋求共識中...</div>
+        <div v-else class="result-banner" :class="{ passed: store.consensusResult === 'pass' }">
+          <h3>{{ store.consensusResult === 'pass' ? '✅ 共識決通過' : '❌ 共識決未通過' }}</h3>
         </div>
       </section>
 
@@ -241,9 +228,7 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .result-banner p { font-size: 1.5rem; margin: 5px 0; }
 .reason { color: #f87171; font-weight: bold; }
 
-.consensus-display { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
-.consensus-item { display: flex; flex-direction: column; align-items: center; gap: 10px; background: #1e293b; padding: 30px 40px; border-radius: 12px; min-width: 200px; }
-.consensus-icon { font-size: 3rem; } .consensus-label { font-size: 1.5rem; color: #94a3b8; } .consensus-value { font-size: 4rem; font-weight: 800; color: #f8fafc; }
+.consensus-pending { font-size: 2rem; color: #94a3b8; margin-top: 40px; }
 
 .mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
 .mod-header-large { margin-bottom: 30px; }

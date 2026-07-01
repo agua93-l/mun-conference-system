@@ -39,6 +39,8 @@ export const useConferenceStore = defineStore('conference', () => {
   const rollCallVoteStatus = ref('voting')
   const votingRound2 = ref(false)
   
+  const consensusResult = ref(null)
+
   const stats = reactive({})
   const documents = ref([])
   const p5Timer = ref(0)
@@ -136,6 +138,7 @@ export const useConferenceStore = defineStore('conference', () => {
       if (d.rollCallVoteData) Object.keys(d.rollCallVoteData).forEach(k => { if (rollCallVoteData[k] !== d.rollCallVoteData[k]) rollCallVoteData[k] = d.rollCallVoteData[k] })
       if (d.rollCallVoteStatus !== rollCallVoteStatus.value) rollCallVoteStatus.value = d.rollCallVoteStatus || 'voting'
       if (d.votingRound2 !== votingRound2.value) votingRound2.value = !!d.votingRound2
+      if (d.consensusResult !== consensusResult.value) consensusResult.value = d.consensusResult ?? null
       if (d.stats) Object.keys(d.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], d.stats[key]) })
       if (JSON.stringify(d.documents) !== JSON.stringify(documents.value)) documents.value = d.documents || []
       if (d.p5Timer !== p5Timer.value) p5Timer.value = d.p5Timer ?? 0
@@ -169,7 +172,8 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value,
       rollCallVoteData: JSON.parse(JSON.stringify(rollCallVoteData)),
-      rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value
+      rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value,
+      consensusResult: consensusResult.value
     }).catch(() => {})
   }
 
@@ -204,7 +208,8 @@ export const useConferenceStore = defineStore('conference', () => {
   function nextVotingRound() { votingRound2.value = true; sync() }
   function endVotingRollCall() { rollCallVoteStatus.value = 'finished'; sync() }
   function resetVoting() { delegates.forEach(d => { delete rollCallVoteData[d.name] }); rollCallVoteStatus.value = 'voting'; votingRound2.value = false; sync() }
-  function finishConsensus() { screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync() }
+  function setConsensusResult(result) { consensusResult.value = result; sync() }
+  function finishConsensus() { consensusResult.value = null; screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync() }
 
   // ✅ 修復：toggleGeneralTimer 競態條件
   function toggleGeneralTimer() {
@@ -303,12 +308,6 @@ function nextGeneralSpeaker() {
   function approveMotion(i) {
     if (i<0||i>=motionQueue.value.length) return
     currentVotingMotion.value = motionQueue.value[i]; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
-  }
-  function rejectMotion() {
-    currentVotingMotion.value = null
-    if (motionQueue.value.length > 0) { sortMotionQueue(); currentVotingMotion.value = motionQueue.value.shift(); screenMode.value = 'motion_voting' }
-    else { screenMode.value = 'default'; meetingPhase.value = '正式辯論' }
-    sync()
   }
   function executeMotion() {
     const m = currentVotingMotion.value; if (!m) return; clearAllTimers()
@@ -432,6 +431,7 @@ function rejectMotion() {
     modCaucusSpeakerTimer.value = 0; modCaucusTotalTimer.value = 0; modCaucusTopic.value = ''
     modCaucusDefaultSpeakTime.value = 0; p5Timer.value = 0; caucusTotalTimer.value = 0
     rollCallVoteStatus.value = 'voting'; votingRound2.value = false; currentVotingMotion.value = null
+    consensusResult.value = null
     recalcThresholds(); sync()
     setTimeout(() => { window.location.reload() }, 500)
   }
@@ -446,6 +446,7 @@ function rejectMotion() {
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
     addDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
     startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus,
+    consensusResult, setConsensusResult,
     saveProgress, resetMeeting, recalcThresholds, sync
   }
 })

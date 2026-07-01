@@ -55,9 +55,13 @@
         <!-- 共識決控制區 -->
         <div class="card" v-else-if="store.screenMode === 'voting_consensus'">
           <h3>🤝 共識決投票</h3>
-          <div class="consensus-controls">
-            <button class="btn-consensus pass" @click="showConsensusResult(true)">✅ 通過</button>
-            <button class="btn-consensus fail" @click="showConsensusResult(false)">❌ 不通過</button>
+          <div v-if="!store.consensusResult" class="consensus-controls">
+            <button class="btn-consensus pass" @click="store.setConsensusResult('pass')">✅ 通過</button>
+            <button class="btn-consensus fail" @click="store.setConsensusResult('fail')">❌ 不通過</button>
+          </div>
+          <div v-else class="consensus-result-box">
+            <p>結果已同步至代表端：<strong>{{ store.consensusResult === 'pass' ? '✅ 通過' : '❌ 不通過' }}</strong></p>
+            <button class="btn-return-debate" @click="store.finishConsensus()">✅ 返回辯論</button>
           </div>
         </div>
 
@@ -226,7 +230,6 @@ async function clearStats() { if (!confirm('⚠️ 確定要清除統計？')) r
 function openVoteModal(country) { votingTargetCountry.value = country; showVoteModal.value = true }
 function setVote(voteType) { store.recordRollCallVote(votingTargetCountry.value, voteType); showVoteModal.value = false }
 function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'🗣️ 反對並發言', abstain:'⚪ 棄權', pass:'⏭️ 跳過' }[vote] || '' }
-function showConsensusResult(passed) { alert(passed ? '✅ 共識決：通過' : '❌ 共識決：不通過'); store.finishConsensus() }
 function handleSaveProgress() { store.saveProgress(); alert('✅ 會議進度已儲存 (已同步至雲端)') }
 
 onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
@@ -314,6 +317,8 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-clear { padding: 4px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
 
 .consensus-controls { display: flex; gap: 10px; margin-top: 10px; }
+.consensus-result-box { text-align: center; padding: 10px 0; }
+.consensus-result-box p { font-size: 1.1rem; margin-bottom: 15px; }
 .btn-consensus { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
 .btn-consensus.pass { background: #4caf50; color: white; }
 .btn-consensus.fail { background: #f44336; color: white; }
