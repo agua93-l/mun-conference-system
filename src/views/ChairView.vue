@@ -1,27 +1,24 @@
 <template>
   <div class="chair-container">
     <header class="top-bar">
-      <h1>🏛️ 安理會主席控制台</h1>
+      <h1>🏛️ {{ store.title || '主席控制台' }}</h1>
       <div class="status-pill">{{ store.meetingPhase }}</div>
       <div class="header-actions">
-        <select class="section-select" v-model="selectedSection" @change="store.setSection(selectedSection)">
-          <option value="議程 1">議程 1 (5/30 09:30~11:30)</option>
-          <option value="議程 2">議程 2 (5/30 12:30~14:30)</option>
-          <option value="議程 3">議程 3 (5/30 14:45~16:10)</option>
-          <option value="議程 4">議程 4 (5/31 09:00~11:30)</option>
-          <option value="議程 5">議程 5 (5/31 12:30~14:45)</option>
-          <option value="議程 6">議程 6 (5/31 15:00~17:00)</option>
+        <select class="section-select" :value="store.currentSection" @change="store.setSection($event.target.value)">
+          <option v-for="a in store.agenda" :key="a.id" :value="a.label">{{ a.label }}</option>
         </select>
-        
+
         <button class="btn-open-screen" @click="openScreenView">📺 開啟代表端</button>
-        <button class="btn-stats" @click="router.push('/stats')">📊 各國統計</button>
+        <button class="btn-stats" @click="router.push('/stats/' + confId)">📊 各國統計</button>
         <button class="btn-clear-stats" @click="clearStats">🗑️ 清除統計</button>
+        <button class="btn-settings" @click="router.push('/chair/' + confId + '/settings')">⚙️ 設定</button>
         <button class="btn-save" @click="handleSaveProgress">💾 儲存進度</button>
         <button class="btn-reset" @click="store.resetMeeting()">⚠️ 重置會議</button>
-        
+
         <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
         <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
         <button class="btn-return-debate" @click="store.returnToDebate()">✅ 返回辯論</button>
+        <button class="btn-dashboard" @click="router.push('/')">📋 我的會議</button>
         <button class="btn-logout" @click="handleLogout">🚪 登出</button>
       </div>
     </header>
@@ -257,15 +254,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useConferenceStore } from '../stores/conference'
 
+const route = useRoute()
 const router = useRouter()
 const store = useConferenceStore()
+const confId = route.params.id
 const selCountry = ref(''); const yieldTarget = ref(''); const mType = ref(''); const mCountry = ref(''); const mDetails = ref({})
 const modSelCountry = ref(''); const timeLimitInput = ref(60); const docType = ref('WD'); const docNumber = ref(''); const docTitle = ref('')
-const currentTime = ref(''); const selectedSection = ref('議程 1')
+const currentTime = ref('')
 const showVoteModal = ref(false); const votingTargetCountry = ref('')
 const docFile = ref(null); const docFileInput = ref(null); const docUploading = ref(false)
 const speechNoteText = ref('')
@@ -294,14 +293,19 @@ function submitSpeechNote() {
 
 function formatTime(sec) { const m = Math.floor((sec || 0) / 60); const s = (sec || 0) % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 function handleLogout() { const { auth, authMethods } = window.firebase; authMethods.signOut(auth).then(() => { router.push('/login') }) }
-function openScreenView() { const route = router.resolve('/screen'); window.open(route.href, '_blank') }
-async function clearStats() { if (!confirm('⚠️ 確定要清除統計？')) return; try { const { db, dbMethods } = window.firebase; await dbMethods.set(dbMethods.ref(db, 'mun_state/stats'), null); alert('✅ 已清除'); window.location.reload() } catch(e) { alert('❌ 失敗') } }
+function openScreenView() { const r = router.resolve('/screen/' + confId); window.open(r.href, '_blank') }
+async function clearStats() { if (!confirm('⚠️ 確定要清除統計？')) return; try { await store.clearStats(); alert('✅ 已清除') } catch(e) { alert('❌ 失敗') } }
 function openVoteModal(country) { votingTargetCountry.value = country; showVoteModal.value = true }
 function setVote(voteType) { store.recordRollCallVote(votingTargetCountry.value, voteType); showVoteModal.value = false }
 function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'🗣️ 反對並發言', abstain:'⚪ 棄權', pass:'⏭️ 跳過' }[vote] || '' }
 function handleSaveProgress() { store.saveProgress(); alert('✅ 會議進度已儲存 (已同步至雲端)') }
 
-onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
+watch(() => store.title, (t) => { document.title = t ? t + ' - 主席控制台' : 'MUN 主席控制台' })
+
+onMounted(() => {
+  store.loadConference(confId)
+  const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000)
+})
 onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
 </script>
 
@@ -363,6 +367,8 @@ select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 
 .btn-logout:hover { background: #455a64; }
 .btn-open-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-stats { background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.btn-settings { background: #795548; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+.btn-dashboard { background: #3f51b5; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-clear-stats { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .btn-save { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }

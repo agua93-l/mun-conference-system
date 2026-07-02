@@ -11,10 +11,10 @@
     <!-- Firebase CDN Scripts -->
     <script type="module">
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js'
-      import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'
-      import { getDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
+      import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'
+      import { getDatabase, ref, set, get, update, push, child, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'
       import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js'
-      
+
       const firebaseConfig = {
         apiKey: "AIzaSyBv7OleZaWKZTJS_TFW2E3u4ln5Rs7nkWo",
         authDomain: "tymun-security-council.firebaseapp.com",
@@ -24,9 +24,9 @@
         messagingSenderId: "16719353168",
         appId: "1:16719353168:web:1bb9f60a97641b3babc855"
       }
-      
+
       const app = initializeApp(firebaseConfig)
-      
+
       // ✅ 同時掛載到 window.firebase 和 window.auth（確保相容性）
       window.firebase = {
         app,
@@ -36,6 +36,7 @@
         authMethods: {
           onAuthStateChanged,
           signInWithEmailAndPassword,
+          createUserWithEmailAndPassword,
           signOut
         },
         storageMethods: {
@@ -43,23 +44,12 @@
           uploadBytes,
           getDownloadURL
         },
-        dbMethods: {
-          ref: (db, path) => {
-            import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js').then(({ ref }) => ref(db, path))
-          },
-          set: null,
-          onValue: null
-        }
+        dbMethods: { ref, set, get, update, push, child, onValue }
       }
-      
+
       // ✅ 也直接掛載到 window.auth 方便使用
       window.auth = window.firebase.auth
-      
-      // 動態載入 dbMethods
-      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js').then(({ ref, set, onValue }) => {
-        window.firebase.dbMethods = { ref, set, onValue }
-      })
-      
+
       console.log('✅ Firebase CDN 已載入')
     </script>
     
