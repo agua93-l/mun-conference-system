@@ -5,8 +5,8 @@
       <h1>📊 各國統計總表</h1>
       <div class="header-actions">
         <button class="btn-export" @click="exportToExcel">📊 匯出 Excel</button>
-        <button class="btn-screen" @click="router.push('/screen')" title="開啟代表端">📺 代表端</button>
-        <button class="btn-back" @click="router.push('/')">🔙 返回控制台</button>
+        <button class="btn-screen" @click="router.push('/screen/' + confId)" title="開啟代表端">📺 代表端</button>
+        <button class="btn-back" @click="router.push('/chair/' + confId)">🔙 返回控制台</button>
       </div>
     </header>
     
@@ -54,12 +54,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useConferenceStore } from '../stores/conference'
 
+const route = useRoute()
 const router = useRouter()
 const store = useConferenceStore()
+const confId = route.params.id
+
+onMounted(() => { store.loadConference(confId) })
 
 const sortedStats = computed(() => {
   const entries = Object.entries(store.stats)

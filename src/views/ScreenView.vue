@@ -1,7 +1,7 @@
 <template>
   <div class="screen-container">
     <header class="screen-header">
-      <h1>&#127963; TYMUN 2026 安全理事會會議畫面</h1>
+      <h1>&#127963; {{ store.title || '會議畫面' }}</h1>
       <div class="status-bar">
         <span class="phase">{{ store.meetingPhase }}</span>
         <span class="agenda-display"> {{ store.currentSection }}</span>
@@ -170,12 +170,16 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useConferenceStore } from '../stores/conference'
 
+const route = useRoute()
 const store = useConferenceStore()
 const currentTime = ref('')
 let clockInterval = null
+
+watch(() => store.title, (t) => { document.title = t ? t + ' - 會議畫面' : 'MUN 會議畫面' })
 
 function formatTime(sec) { if (!sec && sec !== 0) return '00:00'; const m = Math.floor(sec / 60); const s = sec % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 
@@ -191,7 +195,10 @@ const p5VetoReason = computed(() => {
   return vetoers.length > 0 ? `五常 (${vetoers.map(v => v.name).join(', ')}) 行使否決權` : ''
 })
 
-onMounted(() => { const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000) })
+onMounted(() => {
+  store.loadConference(route.params.id)
+  const updateClock = () => { currentTime.value = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) }; updateClock(); clockInterval = setInterval(updateClock, 1000)
+})
 onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
 </script>
 
