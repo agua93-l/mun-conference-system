@@ -2,11 +2,11 @@
 <template>
   <div class="stats-container">
     <header class="stats-header">
-      <h1>📊 各國統計總表</h1>
+      <h1>各國統計總表</h1>
       <div class="header-actions">
-        <button class="btn-export" @click="exportToExcel">📊 匯出 Excel</button>
-        <button class="btn-screen" @click="router.push('/screen/' + confId)" title="開啟代表端">📺 代表端</button>
-        <button class="btn-back" @click="router.push('/chair/' + confId)">🔙 返回控制台</button>
+        <button class="btn btn-secondary" @click="exportToExcel">📊 匯出 Excel</button>
+        <button class="btn btn-secondary" @click="router.push('/screen/' + confId)" title="開啟代表端">📺 代表端</button>
+        <button class="btn btn-secondary" @click="router.push('/chair/' + confId)">🔙 返回控制台</button>
       </div>
     </header>
     
@@ -94,22 +94,19 @@ function exportToExcel() {
 </script>
 
 <style scoped>
-.stats-container { padding: 20px; padding-bottom: 50px; background: #f4f6f9; min-height: 100vh; font-family: sans-serif; }
+.stats-container { padding: 32px 24px 50px; min-height: 100vh; }
 .stats-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-h1 { margin: 0; font-size: 1.8rem; color: #2c3e50; }
-.header-actions { display: flex; gap: 10px; }
-.btn-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-back { background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-export { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.table-wrapper { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+h1 { font-size: 1.5rem; }
+.header-actions { display: flex; gap: 8px; }
+.table-wrapper { overflow-x: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .stats-table { width: 100%; border-collapse: collapse; min-width: 1100px; }
-.stats-table th, .stats-table td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #eee; }
-.stats-table th { background: #f5f5f5; font-weight: 600; position: sticky; top: 0; font-size: 0.9rem; }
+.stats-table th, .stats-table td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--color-border); }
+.stats-table th { background: var(--color-bg); font-weight: 600; position: sticky; top: 0; font-size: 0.85rem; color: var(--color-text-secondary); }
 .country-col { min-width: 120px; }
 .country-name { font-weight: 600; white-space: nowrap; }
 .center { text-align: center; }
-.total-col { background: #e3f2fd; font-weight: bold; }
-.total { font-weight: bold; background: #e3f2fd; }
-.passed-col { background: #e8f5e9; font-weight: bold; }
-.passed { font-weight: bold; background: #e8f5e9; color: #2e7d32; }
+.total-col { background: var(--color-accent-soft); font-weight: 700; }
+.total { font-weight: 700; background: var(--color-accent-soft); }
+.passed-col { background: var(--color-success-soft); font-weight: 700; }
+.passed { font-weight: 700; background: var(--color-success-soft); color: var(--color-success); }
 </style>

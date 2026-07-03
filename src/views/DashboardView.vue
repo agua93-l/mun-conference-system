@@ -1,29 +1,34 @@
 <template>
   <div class="dashboard-container">
-    <header class="dashboard-header">
-      <h1>🏛️ 我的會議</h1>
-      <button class="btn-logout" @click="handleLogout">🚪 登出</button>
-    </header>
+    <div class="dashboard-inner">
+      <header class="dashboard-header">
+        <h1>我的會議</h1>
+        <button class="btn btn-ghost" @click="handleLogout">🚪 登出</button>
+      </header>
 
-    <div v-if="showLegacyBanner" class="legacy-banner">
-      <span>偵測到舊版會議資料，是否要匯入為新會議？</span>
-      <div class="legacy-actions">
-        <button :disabled="legacyBusy" class="btn-import" @click="importLegacy">{{ legacyBusy ? '匯入中...' : '✅ 匯入' }}</button>
-        <button :disabled="legacyBusy" class="btn-dismiss" @click="dismissLegacy">✕ 略過</button>
+      <div v-if="showLegacyBanner" class="legacy-banner">
+        <span>偵測到舊版會議資料，是否要匯入為新會議？</span>
+        <div class="legacy-actions">
+          <button class="btn btn-success btn-sm" :disabled="legacyBusy" @click="importLegacy">{{ legacyBusy ? '匯入中...' : '✅ 匯入' }}</button>
+          <button class="btn btn-secondary btn-sm" :disabled="legacyBusy" @click="dismissLegacy">✕ 略過</button>
+        </div>
       </div>
-    </div>
 
-    <div class="create-card">
-      <input v-model="newTitle" placeholder="新會議標題（例如：OOMUN 2027 經社理事會）" @keyup.enter="handleCreate" />
-      <button :disabled="!newTitle.trim() || creating" @click="handleCreate">{{ creating ? '建立中...' : '➕ 新增會議' }}</button>
-    </div>
+      <div class="create-card">
+        <input v-model="newTitle" placeholder="新會議標題（例如：OOMUN 2027 經社理事會）" @keyup.enter="handleCreate" />
+        <button class="btn btn-primary" :disabled="!newTitle.trim() || creating" @click="handleCreate">{{ creating ? '建立中...' : '➕ 新增會議' }}</button>
+      </div>
 
-    <div class="conference-list">
-      <div v-if="accountStore.loading" class="empty">載入中...</div>
-      <div v-else-if="accountStore.conferences.length === 0" class="empty">尚未建立任何會議，於上方輸入標題開始第一場會議吧！</div>
-      <div v-for="c in accountStore.conferences" :key="c.id" class="conference-card" @click="openConference(c.id)">
-        <h3>{{ c.title }}</h3>
-        <span class="conference-date">{{ c.createdAt ? new Date(c.createdAt).toLocaleDateString('zh-TW') : '' }}</span>
+      <div class="conference-list">
+        <div v-if="accountStore.loading" class="empty">載入中...</div>
+        <div v-else-if="accountStore.conferences.length === 0" class="empty">尚未建立任何會議，於上方輸入標題開始第一場會議吧！</div>
+        <div v-for="c in accountStore.conferences" :key="c.id" class="conference-card" @click="openConference(c.id)">
+          <h3>{{ c.title }}</h3>
+          <div class="card-meta">
+            <span class="conference-date">{{ c.createdAt ? new Date(c.createdAt).toLocaleDateString('zh-TW') : '' }}</span>
+            <span class="badge" :class="c.role === 'editor' ? 'badge-warning' : 'badge-accent'">{{ c.role === 'editor' ? '共同編輯' : '擁有者' }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -140,27 +145,22 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.dashboard-container { padding: 20px; min-height: 100vh; background: #f4f6f9; font-family: sans-serif; }
-.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.dashboard-header h1 { margin: 0; font-size: 1.8rem; color: #2c3e50; }
-.btn-logout { background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-logout:hover { background: #455a64; }
+.dashboard-container { min-height: 100vh; padding: 40px 24px; }
+.dashboard-inner { max-width: 880px; margin: 0 auto; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+.dashboard-header h1 { font-size: 1.6rem; }
 
-.legacy-banner { display: flex; justify-content: space-between; align-items: center; background: #fff3e0; border: 1px solid #ffb74d; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; }
+.legacy-banner { display: flex; justify-content: space-between; align-items: center; background: var(--color-warning-soft); border: 1px solid var(--color-warning-border); padding: 14px 18px; border-radius: var(--radius-lg); margin-bottom: 20px; color: var(--color-warning); }
 .legacy-actions { display: flex; gap: 8px; }
-.btn-import { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.btn-import:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-dismiss { background: #fff; color: #666; border: 1px solid #ccc; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 
-.create-card { display: flex; gap: 10px; background: white; padding: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 24px; }
-.create-card input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
-.create-card button { padding: 10px 20px; background: #0055a5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.create-card button:disabled { opacity: 0.6; cursor: not-allowed; }
+.create-card { display: flex; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-border); padding: 14px; border-radius: var(--radius-lg); margin-bottom: 28px; }
+.create-card input { flex: 1; }
 
-.conference-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.conference-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
-.conference-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.12); transform: translateY(-2px); }
-.conference-card h3 { margin: 0 0 8px 0; color: #0055a5; font-size: 1.15rem; }
-.conference-date { color: #888; font-size: 0.85rem; }
-.empty { grid-column: 1 / -1; text-align: center; color: #888; padding: 40px; }
+.conference-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.conference-card { background: var(--color-surface); border: 1px solid var(--color-border); padding: 18px; border-radius: var(--radius-lg); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.conference-card:hover { border-color: var(--color-border-strong); box-shadow: var(--shadow-sm); }
+.conference-card h3 { margin: 0 0 10px 0; color: var(--color-text); font-size: 1.05rem; }
+.card-meta { display: flex; align-items: center; justify-content: space-between; }
+.conference-date { color: var(--color-text-muted); font-size: 0.8rem; }
+.empty { grid-column: 1 / -1; text-align: center; color: var(--color-text-muted); padding: 48px; }
 </style>
