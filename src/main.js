@@ -3,6 +3,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import './style.css'
 
 // ✅ 等待 Firebase CDN 完全載入
 const initApp = () => {

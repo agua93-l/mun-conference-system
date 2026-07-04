@@ -6,7 +6,7 @@
       <form @submit.prevent="handleSubmit" class="login-form">
         <input v-model="email" type="email" placeholder="主席 Email" required />
         <input v-model="password" type="password" placeholder="密碼（至少 6 碼）" required minlength="6" />
-        <button type="submit" :disabled="loading">{{ loading ? '處理中...' : (mode === 'login' ? '登入' : '註冊並登入') }}</button>
+        <button class="btn btn-primary btn-block" type="submit" :disabled="loading">{{ loading ? '處理中...' : (mode === 'login' ? '登入' : '註冊並登入') }}</button>
         <p v-if="error" class="error">{{ error }}</p>
       </form>
       <div class="divider">
@@ -19,8 +19,9 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+const route = useRoute()
 const router = useRouter()
 const email = ref('')
 const password = ref('')
@@ -40,7 +41,7 @@ async function handleSubmit() {
     } else {
       await authMethods.createUserWithEmailAndPassword(auth, email.value, password.value)
     }
-    router.push('/')
+    router.push(route.query.redirect || '/')
   } catch (err) {
     if (err.code === 'auth/invalid-credential') error.value = '帳號或密碼錯誤'
     else if (err.code === 'auth/email-already-in-use') error.value = '此 Email 已註冊過，請改用登入'
@@ -53,15 +54,14 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f4f6f9; }
-.login-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-.login-card h1 { margin: 0 0 10px 0; font-size: 1.8rem; color: #333; }
-.login-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
-input { padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
-button { padding: 12px; background: #0055a5; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-.error { color: #d32f2f; font-size: 0.9rem; margin: 0; }
-.divider { margin: 15px 0; color: #aaa; }
-.mode-toggle { background: none; border: none; color: #0055a5; font-weight: 500; cursor: pointer; padding: 0; font-size: 0.95rem; }
-.guest-hint { color: #999; font-size: 0.85rem; margin: 20px 0 0 0; }
+.login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-card { background: var(--color-surface); border: 1px solid var(--color-border); padding: 40px; border-radius: var(--radius-lg); width: 100%; max-width: 400px; text-align: center; }
+.login-card h1 { font-size: 1.5rem; margin-bottom: 8px; }
+.login-card > p { color: var(--color-text-secondary); font-size: 0.9rem; }
+.login-form { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.login-form input { padding: 11px 12px; }
+.error { color: var(--color-danger); font-size: 0.85rem; margin: 0; }
+.divider { margin: 16px 0; }
+.mode-toggle { background: none; border: none; color: var(--color-accent); font-weight: 500; cursor: pointer; padding: 0; font-size: 0.9rem; }
+.guest-hint { color: var(--color-text-muted); font-size: 0.8rem; margin: 20px 0 0 0; }
 </style>

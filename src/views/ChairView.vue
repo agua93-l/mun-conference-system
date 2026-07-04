@@ -1,25 +1,41 @@
 <template>
   <div class="chair-container">
-    <header class="top-bar">
-      <h1>🏛️ {{ store.title || '主席控制台' }}</h1>
-      <div class="status-pill">{{ store.meetingPhase }}</div>
-      <div class="header-actions">
-        <select class="section-select" :value="store.currentSection" @change="store.setSection($event.target.value)">
+    <header class="page-header">
+      <div class="header-row">
+        <div class="header-title">
+          <h1>{{ store.title || '主席控制台' }}</h1>
+          <span class="badge badge-accent">{{ store.meetingPhase }}</span>
+        </div>
+        <div class="header-icons">
+          <button class="btn btn-ghost btn-icon" title="會議設定" @click="router.push('/chair/' + confId + '/settings')">⚙️</button>
+          <button class="btn btn-ghost btn-icon" title="我的會議" @click="router.push('/')">📋</button>
+          <button class="btn btn-ghost btn-icon" title="登出" @click="handleLogout">🚪</button>
+        </div>
+      </div>
+
+      <div class="header-row toolbar">
+        <select class="agenda-select" :value="store.currentSection" @change="store.setSection($event.target.value)">
           <option v-for="a in store.agenda" :key="a.id" :value="a.label">{{ a.label }}</option>
         </select>
 
-        <button class="btn-open-screen" @click="openScreenView">📺 開啟代表端</button>
-        <button class="btn-stats" @click="router.push('/stats/' + confId)">📊 各國統計</button>
-        <button class="btn-clear-stats" @click="clearStats">🗑️ 清除統計</button>
-        <button class="btn-settings" @click="router.push('/chair/' + confId + '/settings')">⚙️ 設定</button>
-        <button class="btn-save" @click="handleSaveProgress">💾 儲存進度</button>
-        <button class="btn-reset" @click="store.resetMeeting()">⚠️ 重置會議</button>
+        <button class="btn btn-secondary btn-sm" @click="openScreenView">📺 代表端</button>
+        <button class="btn btn-secondary btn-sm" @click="router.push('/stats/' + confId)">📊 統計</button>
 
-        <button class="btn-suspend" @click="store.suspendMeeting">⏸️ 暫停</button>
-        <button class="btn-resume" @click="store.resumeMeeting">▶️ 恢復</button>
-        <button class="btn-return-debate" @click="store.returnToDebate()">✅ 返回辯論</button>
-        <button class="btn-dashboard" @click="router.push('/')">📋 我的會議</button>
-        <button class="btn-logout" @click="handleLogout">🚪 登出</button>
+        <div class="toolbar-spacer"></div>
+
+        <button v-if="store.screenMode !== 'suspended'" class="btn btn-secondary btn-sm" @click="store.suspendMeeting">⏸️ 暫停</button>
+        <button v-else class="btn btn-primary btn-sm" @click="store.resumeMeeting">▶️ 恢復</button>
+        <button v-if="store.screenMode !== 'default'" class="btn btn-secondary btn-sm" @click="store.returnToDebate()">✅ 返回辯論</button>
+
+        <div class="more-menu">
+          <button class="btn btn-ghost btn-icon" title="更多操作" @click="showMoreMenu = !showMoreMenu">⋯</button>
+          <div v-if="showMoreMenu" class="menu-overlay" @click="showMoreMenu = false"></div>
+          <div v-if="showMoreMenu" class="menu-panel">
+            <button class="menu-item" @click="handleSaveProgress(); showMoreMenu = false">💾 儲存進度</button>
+            <button class="menu-item" @click="clearStats(); showMoreMenu = false">🗑️ 清除統計</button>
+            <button class="menu-item menu-item-danger" @click="store.resetMeeting(); showMoreMenu = false">⚠️ 重置會議</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -29,21 +45,23 @@
         <div class="card" v-if="store.screenMode === 'voting_roll_call'">
           <h3>🗳️ 唱名表決控制</h3>
           <div class="voting-controls-header">
-            <span>輪次：{{ store.votingRound2 ? '第二輪 (僅贊成/反對)' : '第一輪 (完整)' }}</span>
-            <button class="btn-next-round" v-if="!store.votingRound2" @click="store.nextVotingRound()">⏭️ 進入第二輪</button>
-            <button class="btn-end-vote" @click="store.endVotingRollCall()">✅ 結束投票並顯示結果</button>
+            <span class="muted-text">輪次：{{ store.votingRound2 ? '第二輪 (僅贊成/反對)' : '第一輪 (完整)' }}</span>
+            <div class="row-actions">
+              <button class="btn btn-secondary btn-sm" v-if="!store.votingRound2" @click="store.nextVotingRound()">⏭️ 進入第二輪</button>
+              <button class="btn btn-primary btn-sm" @click="store.endVotingRollCall()">✅ 結束投票並顯示結果</button>
+            </div>
           </div>
-          
+
           <div class="delegates-grid">
             <div v-for="d in store.delegates.filter(x => x.type === 'member')" :key="d.name" class="delegate-row" :class="{ voted: store.rollCallVoteData[d.name] }">
               <span class="d-name">{{ d.name }}</span>
               <div class="d-status">
-                <span v-if="store.rollCallVoteData[d.name]" class="voted-tag">{{ getVoteLabel(store.rollCallVoteData[d.name]) }}</span>
-                <span v-else class="pending-tag">待投票</span>
+                <span v-if="store.rollCallVoteData[d.name]" class="badge badge-success">{{ getVoteLabel(store.rollCallVoteData[d.name]) }}</span>
+                <span v-else class="badge badge-neutral">待投票</span>
               </div>
               <div class="d-actions">
-                <button class="btn-vote" @click="openVoteModal(d.name)">🗳️ 投票</button>
-                <button class="btn-clear" v-if="store.rollCallVoteData[d.name]" @click="store.recordRollCallVote(d.name, null)">清除</button>
+                <button class="btn btn-secondary btn-sm" @click="openVoteModal(d.name)">投票</button>
+                <button class="btn btn-ghost btn-sm" v-if="store.rollCallVoteData[d.name]" @click="store.recordRollCallVote(d.name, null)">清除</button>
               </div>
             </div>
           </div>
@@ -53,12 +71,12 @@
         <div class="card" v-else-if="store.screenMode === 'voting_consensus'">
           <h3>🤝 共識決投票</h3>
           <div v-if="!store.consensusResult" class="consensus-controls">
-            <button class="btn-consensus pass" @click="store.setConsensusResult('pass')">✅ 通過</button>
-            <button class="btn-consensus fail" @click="store.setConsensusResult('fail')">❌ 不通過</button>
+            <button class="btn btn-success btn-block" @click="store.setConsensusResult('pass')">✅ 通過</button>
+            <button class="btn btn-danger btn-block" @click="store.setConsensusResult('fail')">❌ 不通過</button>
           </div>
           <div v-else class="consensus-result-box">
             <p>結果已同步至代表端：<strong>{{ store.consensusResult === 'pass' ? '✅ 通過' : '❌ 不通過' }}</strong></p>
-            <button class="btn-return-debate" @click="store.finishConsensus()">✅ 返回辯論</button>
+            <button class="btn btn-primary btn-block" @click="store.finishConsensus()">✅ 返回辯論</button>
           </div>
         </div>
 
@@ -66,12 +84,12 @@
         <div class="card" v-else>
           <h3>🎤 常設發言人名單</h3>
           <div class="current-speaker-box">
-            <span>當前發言人：</span>
+            <span class="muted-text">當前發言人</span>
             <strong>{{ store.currentGeneralSpeaker || '無' }}</strong>
             <span class="timer-display">{{ formatTime(store.generalSpeakerTimer) }}</span>
           </div>
           <div class="input-row">
-            <label>預設時長(秒):</label>
+            <label class="field-label">預設時長(秒)</label>
             <input v-model.number="timeLimitInput" @change="store.generalTimeLimit = Math.max(10, timeLimitInput)" type="number" min="10" />
           </div>
           <div class="input-row">
@@ -79,21 +97,20 @@
               <option value="">選擇國家</option>
               <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
-            <button @click="store.addToGeneralList(selCountry); selCountry=''">加入名單</button>
+            <button class="btn btn-secondary" @click="store.addToGeneralList(selCountry); selCountry=''">加入名單</button>
           </div>
           <div class="list-scroll">
             <div v-for="(spk, i) in store.generalList" :key="i" class="list-item"><span>{{ spk.country }}</span></div>
             <div v-if="store.generalList.length === 0" class="empty">無登記代表</div>
           </div>
           <div class="timer-control-row">
-            <button class="btn-next" @click="store.nextGeneralSpeaker">➡️ 下一位</button>
+            <button class="btn btn-secondary" @click="store.nextGeneralSpeaker">➡️ 下一位</button>
             <select v-model="yieldTarget" class="yield-select" :disabled="!store.currentGeneralSpeaker || store.generalSpeakerTimer <= 0">
               <option value="">🔄 讓渡予...</option>
               <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
-            <button class="btn-yield" :disabled="!yieldTarget" @click="store.yieldToDelegate(yieldTarget); yieldTarget=''">讓渡</button>
-            <!-- ✅ 正確綁定：使用 store.toggleGeneralTimer -->
-            <button :class="['btn-timer', store.isGeneralTimerRunning ? 'active' : '']" @click="store.toggleGeneralTimer">
+            <button class="btn btn-warning" :disabled="!yieldTarget" @click="store.yieldToDelegate(yieldTarget); yieldTarget=''">讓渡</button>
+            <button class="btn" :class="store.isGeneralTimerRunning ? 'btn-primary' : 'btn-secondary'" @click="store.toggleGeneralTimer">
               {{ store.isGeneralTimerRunning ? '⏸️ 暫停' : '▶️ 開始' }}
             </button>
           </div>
@@ -103,7 +120,7 @@
         <div class="card roll-call-control" v-if="store.screenMode !== 'voting_roll_call' && store.screenMode !== 'voting_consensus'">
           <h3>📋 點名系統</h3>
           <div v-if="!store.isRollCallActive" class="rc-trigger">
-            <button class="btn-start-rollcall" @click="store.startRollCall()">📢 開始點名 (同步至代表端)</button>
+            <button class="btn btn-primary btn-block" @click="store.startRollCall()">📢 開始點名 (同步至代表端)</button>
           </div>
           <div v-else class="rc-active-panel">
             <div class="rc-status">進行中... 已點 {{ Object.values(store.rollCallStatus).filter(s => s).length }} / {{ store.delegates.length }} 席</div>
@@ -118,7 +135,7 @@
                 </div>
               </div>
             </div>
-            <button class="btn-end-rollcall" @click="store.endRollCall()">✅ 點名完畢，返回會議</button>
+            <button class="btn btn-primary btn-block" @click="store.endRollCall()">✅ 點名完畢，返回會議</button>
           </div>
         </div>
       </div>
@@ -143,21 +160,21 @@
               <input v-model.number="mDetails.totalTime" type="number" placeholder="總時長(分)" />
               <input v-model.number="mDetails.speakTime" type="number" placeholder="每人發言(秒)" />
             </template>
-            <button class="btn-submit" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
+            <button class="btn btn-primary btn-block" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
           </div>
-          
+
           <div class="queue-list">
             <div v-for="(m, i) in store.motionQueue" :key="m.id" class="queue-item">
-              <span class="tag">P{{ m.priority }}</span>
+              <span class="badge badge-warning">P{{ m.priority }}</span>
               <span>{{ m.type }} - {{ m.country }}</span>
-              <div class="btn-group">
-                <button class="btn-pass" @click="store.approveMotion(i)">✓ 通過</button>
-                <button class="btn-reject" @click="store.rejectMotion()">✗ 駁回</button>
+              <div class="row-actions">
+                <button class="btn btn-success btn-sm" @click="store.approveMotion(i)">✓ 通過</button>
+                <button class="btn btn-danger btn-sm" @click="store.rejectMotion()">✗ 駁回</button>
               </div>
             </div>
             <div v-if="store.motionQueue.length === 0" class="empty">佇列為空</div>
           </div>
-          <button class="btn-execute" :disabled="!store.currentVotingMotion" @click="store.executeMotion">📢 執行當前表決動議</button>
+          <button class="btn btn-warning btn-block" :disabled="!store.currentVotingMotion" @click="store.executeMotion">📢 執行當前表決動議</button>
         </div>
 
         <div class="card">
@@ -168,18 +185,18 @@
           </div>
           <div class="input-row">
             <input ref="docFileInput" type="file" @change="onDocFileChange" />
-            <button :disabled="!docType || !docNumber || !docTitle || !docFile || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
+            <button class="btn btn-primary" :disabled="!docType || !docNumber || !docTitle || !docFile || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
           </div>
           <div class="doc-review-list">
             <div v-for="(doc, i) in store.documents" :key="doc.number + doc.type + i" class="doc-review-item" :class="doc.status">
               <div class="doc-review-main">
-                <span class="doc-tag">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</span>
+                <span class="badge badge-neutral">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</span>
                 <a v-if="doc.fileURL" :href="doc.fileURL" target="_blank" class="doc-link">📎 檔案</a>
-                <span class="doc-status-badge" :class="doc.status">{{ doc.status === 'pending' ? '⏳ 待審' : doc.status === 'rejected' ? '❌ 已退回' : '✅ 已通過' }}</span>
+                <span class="badge" :class="doc.status === 'pending' ? 'badge-warning' : doc.status === 'rejected' ? 'badge-danger' : 'badge-success'">{{ doc.status === 'pending' ? '⏳ 待審' : doc.status === 'rejected' ? '❌ 已退回' : '✅ 已通過' }}</span>
               </div>
-              <div class="doc-review-actions" v-if="doc.status === 'pending'">
-                <button class="btn-pass" @click="store.reviewDocument(i, 'approved')">✓ 通過</button>
-                <button class="btn-reject" @click="store.reviewDocument(i, 'rejected')">✗ 退回</button>
+              <div class="row-actions" v-if="doc.status === 'pending'">
+                <button class="btn btn-success btn-sm" @click="store.reviewDocument(i, 'approved')">✓ 通過</button>
+                <button class="btn btn-danger btn-sm" @click="store.reviewDocument(i, 'rejected')">✗ 退回</button>
               </div>
             </div>
             <div v-if="store.documents.length === 0" class="empty">尚無公告文件</div>
@@ -189,14 +206,14 @@
         <div class="card">
           <h3>📝 發言紀錄</h3>
           <div class="input-row" v-if="activeSpeaker">
-            <span class="active-speaker-tag">{{ activeSpeaker }}</span>
+            <span class="badge badge-accent active-speaker-tag">{{ activeSpeaker }}</span>
             <input v-model="speechNoteText" placeholder="輸入對本次發言的紀錄與想法..." @keyup.enter="submitSpeechNote" />
-            <button :disabled="!speechNoteText" @click="submitSpeechNote">➕ 加入</button>
+            <button class="btn btn-secondary" :disabled="!speechNoteText" @click="submitSpeechNote">➕ 加入</button>
           </div>
           <div v-else class="empty">目前無發言人</div>
           <div class="speech-notes-list">
             <div v-for="n in store.speechNotes" :key="n.id" class="speech-note-item">
-              <div class="speech-note-head"><strong>{{ n.country }}</strong><span class="note-phase">{{ n.phase }}</span></div>
+              <div class="speech-note-head"><strong>{{ n.country }}</strong><span class="muted-text">{{ n.phase }}</span></div>
               <p class="note-text">{{ n.note }}</p>
               <button class="btn-delete-note" @click="store.deleteSpeechNote(n.id)">🗑️</button>
             </div>
@@ -221,35 +238,35 @@
           <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong></div>
           <div class="input-row">
             <select v-model="modSelCountry"><option value="">選擇國家</option><option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option></select>
-            <button @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
+            <button class="btn btn-secondary" @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
           </div>
           <div class="list-scroll"><div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item"><span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span></div><div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div></div>
           <div class="timer-control-row">
-            <button class="btn-next" @click="store.nextModSpeaker">➡️ 下一位</button>
-            <button :class="['btn-timer', store.isModCaucusRunning ? 'active' : '']" @click="store.toggleModCaucusTimer">{{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}</button>
-            <button class="btn-clear-mod" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">🗑️ 清空名單</button>
+            <button class="btn btn-secondary" @click="store.nextModSpeaker">➡️ 下一位</button>
+            <button class="btn" :class="store.isModCaucusRunning ? 'btn-primary' : 'btn-secondary'" @click="store.toggleModCaucusTimer">{{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}</button>
+            <button class="btn btn-danger" @click="store.modCaucusList = []; store.currentModSpeaker = ''; store.modCaucusSpeakerTimer = 0; store.sync()">🗑️ 清空名單</button>
             <div class="dual-timer"><span>總時長: {{ formatTime(store.modCaucusTotalTimer) }}</span><span>當前: {{ formatTime(store.modCaucusSpeakerTimer) }}</span></div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <!-- 投票彈窗 Modal -->
     <div class="vote-modal-overlay" v-if="showVoteModal" @click.self="showVoteModal = false">
       <div class="vote-modal">
         <h3>為 <strong>{{ votingTargetCountry }}</strong> 投票 ({{ store.votingRound2 ? '第二輪' : '第一輪' }})</h3>
         <div class="vote-options">
-          <button class="vote-btn yes" @click="setVote('yes')">✅ 贊成</button>
-          <button class="vote-btn yes-speak" @click="setVote('yes_speak')" v-if="!store.votingRound2">🗣️ 贊成並發言</button>
-          <button class="vote-btn no" @click="setVote('no')">❌ 反對</button>
-          <button class="vote-btn no-speak" @click="setVote('no_speak')" v-if="!store.votingRound2">🗣️ 反對並發言</button>
-          <button class="vote-btn abstain" @click="setVote('abstain')" v-if="!store.votingRound2">⚪ 棄權</button>
-          <button class="vote-btn pass" @click="setVote('pass')" v-if="!store.votingRound2">⏭️ 跳過</button>
+          <button class="btn btn-success" @click="setVote('yes')">✅ 贊成</button>
+          <button class="btn btn-success" @click="setVote('yes_speak')" v-if="!store.votingRound2">🗣️ 贊成並發言</button>
+          <button class="btn btn-danger" @click="setVote('no')">❌ 反對</button>
+          <button class="btn btn-danger" @click="setVote('no_speak')" v-if="!store.votingRound2">🗣️ 反對並發言</button>
+          <button class="btn btn-secondary" @click="setVote('abstain')" v-if="!store.votingRound2">⚪ 棄權</button>
+          <button class="btn btn-warning" @click="setVote('pass')" v-if="!store.votingRound2">⏭️ 跳過</button>
         </div>
       </div>
     </div>
-    
-    <div class="live-clock">🕒 台北時間: {{ currentTime }}</div>
+
+    <div class="live-clock">🕒 {{ currentTime }}</div>
   </div>
 </template>
 
@@ -268,6 +285,7 @@ const currentTime = ref('')
 const showVoteModal = ref(false); const votingTargetCountry = ref('')
 const docFile = ref(null); const docFileInput = ref(null); const docUploading = ref(false)
 const speechNoteText = ref('')
+const showMoreMenu = ref(false)
 let clockInterval = null
 
 const activeSpeaker = computed(() => store.currentModSpeaker || store.currentGeneralSpeaker || '')
@@ -310,130 +328,108 @@ onUnmounted(() => { if (clockInterval) clearInterval(clockInterval) })
 </script>
 
 <style scoped>
-.section-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-size: 0.9rem; }
-.roll-call-control { border: 2px solid #2196f3; }
-.btn-start-rollcall { width: 100%; padding: 12px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; }
-.btn-end-rollcall { width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px; }
-.rc-status { text-align: center; margin-bottom: 10px; font-weight: bold; color: #333; }
-.roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; padding: 5px; }
-.roll-call-item { background: #f9f9f9; padding: 6px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; }
-.rc-name { font-size: 0.85rem; font-weight: bold; text-align: center; }
-.rc-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
-.rc-btn { flex: 1; padding: 2px 0; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; min-width: 40px; }
-.rc-btn.active-present { background: #4caf50; color: white; border-color: #4caf50; }
-.rc-btn.active-late { background: #ff9800; color: white; border-color: #ff9800; }
-.rc-btn.active-absent { background: #f44336; color: white; border-color: #f44336; }
-.rc-btn-change-late { background: #ff9800; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 0.7rem; }
-.mod-info-badge { background: #e3f2fd; padding: 8px; border-radius: 6px; margin-bottom: 10px; text-align: center; font-size: 0.95rem; }
-.yield-select { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fffbe6; }
-.btn-yield { padding: 8px 12px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; }
-.btn-yield:disabled { opacity: 0.5; cursor: not-allowed; }
-.doc-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; max-height: 100px; overflow-y: auto; }
-.doc-tag { background: #e3f2fd; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; }
-.current-speaker-box { background: #e3f2fd; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 1.1rem; }
-.timer-display { font-family: monospace; font-weight: bold; color: #d32f2f; font-size: 1.3rem; }
-.queue-item { display: flex; align-items: center; gap: 10px; padding: 8px; margin-bottom: 6px; background: #fff3e0; border-radius: 4px; }
-.btn-group { margin-left: auto; display: flex; gap: 5px; }
-.btn-pass { background: #4caf50; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; }
-.btn-reject { background: #f44336; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; }
-.btn-execute { width: 100%; padding: 12px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-.btn-execute:disabled { opacity: 0.5; cursor: not-allowed; }
-.dual-timer { display: flex; flex-direction: column; font-family: monospace; font-size: 0.9rem; background: #f5f5f5; padding: 5px 10px; border-radius: 4px; }
-.list-item { padding: 8px; background: #f9f9f9; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; }
-.mod-item { background: #e3f2fd; }
-.empty { text-align: center; color: #888; padding: 10px; }
-.timer-control-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.btn-next, .btn-timer { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; background: #e0e0e0; }
-.btn-timer.active { background: #4caf50; color: white; }
-.btn-clear-mod { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
-.card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
-h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-.input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
-select, input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; }
-.list-scroll { max-height: 150px; overflow-y: auto; margin-bottom: 10px; }
-.motion-form { display: flex; flex-direction: column; gap: 8px; }
-.btn-submit { width: 100%; padding: 12px; background: #673ab7; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-.queue-list { max-height: 120px; overflow-y: auto; margin: 10px 0; background: #fff3e0; padding: 10px; border-radius: 4px; }
-.tag { background: #ffcc00; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12px; }
-.chair-container { padding: 20px; padding-bottom: 50px; background: #f4f6f9; min-height: 100vh; font-family: sans-serif; position: relative; }
-.live-clock { position: fixed; bottom: 15px; right: 20px; background: rgba(0,0,0,0.85); color: #00ff88; padding: 8px 16px; border-radius: 8px; font-family: monospace; font-size: 14px; z-index: 1000; border: 1px solid #333; }
-.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-.status-pill { background: #0055a5; color: white; padding: 5px 15px; border-radius: 20px; }
-.header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.btn-suspend { background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-resume { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-logout { background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-logout:hover { background: #455a64; }
-.btn-open-screen { background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-stats { background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-settings { background: #795548; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-dashboard { background: #3f51b5; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-clear-stats { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-return-debate { background: #00acc1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-save { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-.btn-save:hover { background: #388e3c; }
-.btn-reset { background: #ef5350; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-.btn-reset:hover { background: #d32f2f; }
-.grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chair-container { padding: 24px; padding-bottom: 60px; min-height: 100vh; position: relative; }
 
-.voting-controls-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-.btn-next-round { background: #2196f3; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-.btn-end-vote { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-.delegates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; }
-.delegate-row { display: flex; flex-direction: column; background: #f9f9f9; padding: 8px; border-radius: 6px; border: 1px solid #eee; position: relative; }
-.delegate-row.voted { background: #e8f5e9; border-color: #4caf50; }
-.d-name { font-weight: bold; font-size: 0.9rem; margin-bottom: 4px; }
-.d-status { font-size: 0.8rem; margin-bottom: 6px; min-height: 20px; }
-.voted-tag { color: #2e7d32; font-weight: bold; }
-.pending-tag { color: #999; font-style: italic; }
+.page-header { margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; }
+.header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.header-title { display: flex; align-items: center; gap: 12px; }
+.header-title h1 { font-size: 1.4rem; }
+.header-icons { display: flex; gap: 6px; }
+
+.toolbar { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 10px 14px; gap: 8px; }
+.agenda-select { min-width: 160px; }
+.toolbar-spacer { flex: 1; }
+.row-actions { display: flex; gap: 6px; margin-left: auto; }
+
+.more-menu { position: relative; }
+.menu-overlay { position: fixed; inset: 0; z-index: 10; }
+.menu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); min-width: 180px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.menu-item {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; background: none;
+  border-radius: var(--radius-sm); font-size: 14px; color: var(--color-text); cursor: pointer;
+}
+.menu-item:hover { background: #f4f4f5; }
+.menu-item-danger { color: var(--color-danger); }
+.menu-item-danger:hover { background: var(--color-danger-soft); }
+
+.muted-text { color: var(--color-text-secondary); font-size: 0.9rem; }
+
+.grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.column .card { margin-bottom: 20px; }
+h3 { font-size: 1rem; margin: 0 0 14px 0; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
+
+.input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+.input-row input, .input-row select { flex: 1; }
+.field-label { font-size: 0.85rem; color: var(--color-text-secondary); white-space: nowrap; }
+.list-scroll { max-height: 150px; overflow-y: auto; margin-bottom: 10px; }
+.list-item { padding: 8px 10px; background: var(--color-bg); margin-bottom: 5px; border-radius: var(--radius-sm); display: flex; justify-content: space-between; }
+.mod-item { background: var(--color-accent-soft); }
+.empty { text-align: center; color: var(--color-text-muted); padding: 14px; font-size: 0.9rem; }
+.timer-control-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.yield-select { flex: 1; }
+
+.current-speaker-box { background: var(--color-accent-soft); padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.timer-display { font-family: ui-monospace, monospace; font-weight: 700; color: var(--color-danger); font-size: 1.2rem; }
+
+.roll-call-control { border-color: var(--color-accent-border); }
+.rc-status { text-align: center; margin-bottom: 10px; font-weight: 600; color: var(--color-text-secondary); font-size: 0.9rem; }
+.roll-call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; padding: 2px; margin-bottom: 12px; }
+.roll-call-item { background: var(--color-bg); padding: 8px; border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 4px; }
+.rc-name { font-size: 0.85rem; font-weight: 600; text-align: center; }
+.rc-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+.rc-btn { flex: 1; padding: 3px 0; font-size: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; min-width: 40px; }
+.rc-btn.active-present { background: var(--color-success); color: white; border-color: var(--color-success); }
+.rc-btn.active-late { background: var(--color-warning); color: white; border-color: var(--color-warning); }
+.rc-btn.active-absent { background: var(--color-danger); color: white; border-color: var(--color-danger); }
+.rc-btn-change-late { background: var(--color-warning-soft); color: var(--color-warning); border: none; padding: 3px 6px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.7rem; }
+
+.mod-info-badge { background: var(--color-accent-soft); padding: 10px; border-radius: var(--radius-md); margin-bottom: 12px; text-align: center; font-size: 0.9rem; }
+.dual-timer { display: flex; flex-direction: column; font-family: ui-monospace, monospace; font-size: 0.85rem; color: var(--color-text-secondary); margin-left: auto; }
+
+.voting-controls-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 8px; }
+.delegates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 320px; overflow-y: auto; }
+.delegate-row { display: flex; flex-direction: column; gap: 6px; background: var(--color-bg); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+.delegate-row.voted { background: var(--color-success-soft); border-color: var(--color-success-border); }
+.d-name { font-weight: 600; font-size: 0.9rem; }
 .d-actions { display: flex; gap: 4px; }
-.btn-vote { flex: 1; padding: 4px; background: #673ab7; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
-.btn-clear { padding: 4px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8rem; }
 
 .consensus-controls { display: flex; gap: 10px; margin-top: 10px; }
 .consensus-result-box { text-align: center; padding: 10px 0; }
-.consensus-result-box p { font-size: 1.1rem; margin-bottom: 15px; }
-.btn-consensus { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
-.btn-consensus.pass { background: #4caf50; color: white; }
-.btn-consensus.fail { background: #f44336; color: white; }
+.consensus-result-box p { font-size: 1rem; margin-bottom: 15px; }
 
-.vote-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000; }
-.vote-modal { background: white; padding: 20px; border-radius: 12px; width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-.vote-modal h3 { margin-top: 0; text-align: center; }
-.vote-options { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
-.vote-btn { padding: 12px; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold; }
-.vote-btn.yes { background: #4caf50; color: white; }
-.vote-btn.yes-speak { background: #81c784; color: white; }
-.vote-btn.no { background: #f44336; color: white; }
-.vote-btn.no-speak { background: #e57373; color: white; }
-.vote-btn.abstain { background: #bdbdbd; color: white; }
-.vote-btn.pass { background: #ff9800; color: white; }
+.queue-list { max-height: 160px; overflow-y: auto; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.queue-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--color-warning-soft); border-radius: var(--radius-sm); }
 
-.doc-review-list { max-height: 220px; overflow-y: auto; margin-top: 10px; }
-.doc-review-item { padding: 10px; background: #f9f9f9; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #ccc; }
-.doc-review-item.pending { border-left-color: #ff9800; }
-.doc-review-item.approved { border-left-color: #4caf50; }
-.doc-review-item.rejected { border-left-color: #f44336; opacity: 0.7; }
+.doc-review-list { max-height: 220px; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.doc-review-item { padding: 10px; background: var(--color-bg); border-radius: var(--radius-md); border-left: 3px solid var(--color-border-strong); }
+.doc-review-item.pending { border-left-color: var(--color-warning); }
+.doc-review-item.approved { border-left-color: var(--color-success); }
+.doc-review-item.rejected { border-left-color: var(--color-danger); opacity: 0.7; }
 .doc-review-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.doc-link { color: #1565c0; text-decoration: none; font-size: 0.85rem; }
-.doc-status-badge { font-size: 0.8rem; font-weight: bold; margin-left: auto; }
-.doc-status-badge.pending { color: #ff9800; }
-.doc-status-badge.approved { color: #4caf50; }
-.doc-status-badge.rejected { color: #f44336; }
-.doc-review-actions { display: flex; gap: 6px; margin-top: 8px; }
+.doc-link { color: var(--color-accent); text-decoration: none; font-size: 0.85rem; margin-left: auto; }
+.doc-review-actions, .row-actions { display: flex; gap: 6px; margin-top: 8px; }
 
-.active-speaker-tag { background: #673ab7; color: white; padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; }
-.speech-notes-list { max-height: 220px; overflow-y: auto; margin-top: 10px; }
-.speech-note-item { position: relative; background: #f9f9f9; padding: 10px 30px 10px 10px; border-radius: 6px; margin-bottom: 8px; }
+.active-speaker-tag { white-space: nowrap; }
+.speech-notes-list { max-height: 220px; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.speech-note-item { position: relative; background: var(--color-bg); padding: 10px 30px 10px 10px; border-radius: var(--radius-md); }
 .speech-note-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }
-.note-phase { font-size: 0.75rem; color: #888; }
 .note-text { margin: 0; font-size: 0.9rem; white-space: pre-wrap; }
 .btn-delete-note { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; opacity: 0.5; }
 .btn-delete-note:hover { opacity: 1; }
 
 .mini-stats-list { max-height: 220px; overflow-y: auto; }
-.mini-stats-row { display: flex; align-items: center; gap: 15px; padding: 8px; border-bottom: 1px solid #eee; }
+.mini-stats-row { display: flex; align-items: center; gap: 15px; padding: 8px 4px; border-bottom: 1px solid var(--color-border); }
 .mini-stats-name { font-weight: 600; flex: 1; }
-.mini-stats-val { font-size: 0.9rem; color: #555; }
+.mini-stats-val { font-size: 0.85rem; color: var(--color-text-secondary); }
+
+.vote-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.45); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+.vote-modal { background: var(--color-surface); padding: 24px; border-radius: var(--radius-lg); width: 300px; box-shadow: var(--shadow-lg); }
+.vote-modal h3 { text-align: center; border: none; padding: 0; margin-bottom: 16px; }
+.vote-options { display: flex; flex-direction: column; gap: 8px; }
+
+.live-clock { position: fixed; bottom: 16px; right: 20px; background: var(--color-text); color: #f4f4f5; padding: 8px 16px; border-radius: var(--radius-md); font-family: ui-monospace, monospace; font-size: 13px; z-index: 1000; }
 </style>

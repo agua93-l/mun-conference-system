@@ -45,6 +45,8 @@ export const useConferenceStore = defineStore('conference', () => {
   const title = ref('')
   const delegates = ref([])
   const agenda = ref(DEFAULT_AGENDA())
+  const ownerUid = ref('')
+  const editors = ref({})
   const loaded = ref(false)
 
   const meetingPhase = ref('正式辯論')
@@ -161,6 +163,8 @@ export const useConferenceStore = defineStore('conference', () => {
     delegates.value = []
     agenda.value = DEFAULT_AGENDA()
     title.value = ''
+    ownerUid.value = ''
+    editors.value = {}
     loaded.value = false
     stateRef = null
     currentConferenceId = conferenceId
@@ -180,6 +184,8 @@ export const useConferenceStore = defineStore('conference', () => {
         if (JSON.stringify(meta.delegates) !== JSON.stringify(delegates.value)) delegates.value = meta.delegates || []
         const nextAgenda = meta.agenda && meta.agenda.length ? meta.agenda : DEFAULT_AGENDA()
         if (JSON.stringify(nextAgenda) !== JSON.stringify(agenda.value)) agenda.value = nextAgenda
+        if (meta.ownerUid !== ownerUid.value) ownerUid.value = meta.ownerUid || ''
+        if (JSON.stringify(meta.editors) !== JSON.stringify(editors.value)) editors.value = meta.editors || {}
 
         if (s.meetingPhase !== meetingPhase.value) meetingPhase.value = s.meetingPhase ?? '正式辯論'
         if (s.screenMode !== screenMode.value) screenMode.value = s.screenMode ?? 'default'
@@ -258,7 +264,7 @@ export const useConferenceStore = defineStore('conference', () => {
     }
     const updates = {}
     updates['conferences/' + id + '/meta'] = meta
-    updates['users/' + user.uid + '/conferences/' + id] = { title: meta.title, createdAt: now }
+    updates['users/' + user.uid + '/conferences/' + id] = { title: meta.title, createdAt: now, role: 'owner' }
     await updateFn(dbRefFn(window.firebase.db, '/'), updates)
     return id
   }
@@ -273,6 +279,34 @@ export const useConferenceStore = defineStore('conference', () => {
     updates[base + 'delegates'] = JSON.parse(JSON.stringify(newDelegates))
     updates[base + 'agenda'] = JSON.parse(JSON.stringify(newAgenda))
     if (user) updates['users/' + user.uid + '/conferences/' + currentConferenceId + '/title'] = newTitle
+    await updateFn(dbRefFn(window.firebase.db, '/'), updates)
+  }
+
+  async function fetchConferenceTitle(conferenceId) {
+    if (!ensureFB()) return ''
+    const snap = await getFn(dbRefFn(window.firebase.db, 'conferences/' + conferenceId + '/meta/title'))
+    return snap.exists() ? snap.val() : ''
+  }
+
+  async function joinAsEditor(conferenceId) {
+    if (!ensureFB()) throw new Error('尚未連線至資料庫')
+    const user = window.firebase.auth?.currentUser
+    if (!user) throw new Error('尚未登入')
+    const now = Date.now()
+    const conferenceTitle = await fetchConferenceTitle(conferenceId)
+    const updates = {}
+    updates['conferences/' + conferenceId + '/meta/editors/' + user.uid] = { email: user.email, joinedAt: now }
+    updates['users/' + user.uid + '/conferences/' + conferenceId] = { title: conferenceTitle || '未命名會議', createdAt: now, role: 'editor' }
+    await updateFn(dbRefFn(window.firebase.db, '/'), updates)
+  }
+
+  async function leaveConference(conferenceId) {
+    if (!ensureFB()) return
+    const user = window.firebase.auth?.currentUser
+    if (!user) return
+    const updates = {}
+    updates['conferences/' + conferenceId + '/meta/editors/' + user.uid] = null
+    updates['users/' + user.uid + '/conferences/' + conferenceId] = null
     await updateFn(dbRefFn(window.firebase.db, '/'), updates)
   }
 
@@ -550,13 +584,13 @@ export const useConferenceStore = defineStore('conference', () => {
   }
 
   return {
-    title, delegates, agenda, loaded,
+    title, delegates, agenda, loaded, ownerUid, editors,
     meetingPhase, screenMode, currentSection, rollCallStatus, isRollCallActive, rollCallFinished, rollCallThresholds,
     generalTimeLimit, generalList, currentGeneralSpeaker, generalSpeakerTimer, isGeneralTimerRunning,
     motionQueue, currentVotingMotion, votingRound2, voteCounts, passedVote, rollCallVoteData, rollCallVoteStatus,
     stats, documents,
     p5Timer, caucusTotalTimer, modCaucusTopic, modCaucusTotalTimer, modCaucusSpeakerTimer, modCaucusDefaultSpeakTime, modCaucusList, currentModSpeaker, isModCaucusRunning,
-    loadConference, createConference, updateMeta, clearStats,
+    loadConference, createConference, updateMeta, clearStats, fetchConferenceTitle, joinAsEditor, leaveConference,
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
     uploadDocument, reviewDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
