@@ -53,6 +53,20 @@
         </section>
 
         <section class="card">
+          <h3>委員會規則</h3>
+          <p class="hint">選擇這場會議套用的議事規則，會影響唱名表決的通過標準與可用的投票選項。</p>
+          <select v-model="localRuleset" class="vote-rule-select">
+            <option value="unsc">安全理事會：實質表決需贊成 ≥ 9 票且無 P5 否決</option>
+            <option value="ecosoc">經濟及社會理事會：實質表決簡單多數（贊成 > 反對）、無否決權、唱名決可「棄權並發言」</option>
+          </select>
+          <p class="rule-note">
+            {{ localRuleset === 'ecosoc'
+              ? '經社理事會沒有常任理事國與否決權。決議草案／修正案以簡單多數通過（棄權不計入分母）。'
+              : '安理會模式：五常（P5）投反對即行使否決權，決議需至少 9 個贊成票且無否決才通過。' }}
+          </p>
+        </section>
+
+        <section class="card">
           <h3>共同編輯</h3>
           <p class="hint">分享下面的連結給其他主席帳號，對方登入後點「加入」即可跟你一起編輯這場會議（權限跟你完全一樣）。</p>
           <div class="invite-row">
@@ -106,6 +120,7 @@ async function handleLeave() {
 const localTitle = ref('')
 const localDelegates = ref([])
 const localAgenda = ref([])
+const localRuleset = ref('unsc')
 const ready = ref(false)
 const saving = ref(false)
 
@@ -118,6 +133,7 @@ function syncFromStore() {
   localTitle.value = store.title
   localDelegates.value = JSON.parse(JSON.stringify(store.delegates))
   localAgenda.value = JSON.parse(JSON.stringify(store.agenda))
+  localRuleset.value = store.ruleset || 'unsc'
   ready.value = true
 }
 
@@ -141,7 +157,7 @@ function removeAgendaItem(i) { localAgenda.value.splice(i, 1) }
 async function handleSave() {
   saving.value = true
   try {
-    await store.updateMeta({ title: localTitle.value, delegates: localDelegates.value, agenda: localAgenda.value })
+    await store.updateMeta({ title: localTitle.value, delegates: localDelegates.value, agenda: localAgenda.value, ruleset: localRuleset.value })
     alert('✅ 設定已儲存')
   } catch (e) {
     alert('❌ 儲存失敗，請重試')
@@ -164,7 +180,8 @@ onMounted(() => {
 .loading { text-align: center; padding: 60px; color: var(--color-text-muted); }
 .settings-body { display: flex; flex-direction: column; gap: 16px; }
 h3 { font-size: 1rem; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
-.title-input { width: 100%; }
+.title-input, .vote-rule-select { width: 100%; }
+.rule-note { font-size: 0.82rem; color: var(--color-text-secondary); margin: 10px 0 0 0; line-height: 1.6; }
 .delegate-add-row, .agenda-add-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 .delegate-add-row input, .agenda-add-row input { flex: 1; min-width: 160px; }
 .p5-check { display: flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--color-text-secondary); }
