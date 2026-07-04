@@ -67,12 +67,15 @@ export const useConferenceStore = defineStore('conference', () => {
   const rollCallVoteData = reactive({})
   const rollCallVoteStatus = ref('voting')
   const votingRound2 = ref(false)
+  const votingTopic = ref('')
+  const ruleset = ref('unsc') // unsc: 安理會（9票+P5否決）/ ecosoc: 經社理事會（實質表決簡單多數、無否決）
 
   const consensusResult = ref(null)
   const speechNotes = ref([])
 
   const stats = reactive({})
   const documents = ref([])
+  const currentVotingDocId = ref(null)
   const p5Timer = ref(0)
   const caucusTotalTimer = ref(0)
   const modCaucusTopic = ref('')
@@ -124,14 +127,17 @@ export const useConferenceStore = defineStore('conference', () => {
     Object.values(rollCallVoteData).forEach(v => {
       if (v === 'yes' || v === 'yes_speak') yes++
       else if (v === 'no' || v === 'no_speak') no++
-      else if (v === 'abstain') abstain++
+      else if (v === 'abstain' || v === 'abstain_speak') abstain++
     })
     return { yes, no, abstain }
   })
 
   const passedVote = computed(() => {
+    const { yes, no } = voteCounts.value
+    if (ruleset.value === 'ecosoc') return yes > no // 經社理事會：實質表決簡單多數（同意 > 反對）
+    // 安理會：同意 ≥ 9 票且無 P5 否決
     const p5Veto = delegates.value.some(d => d.p5 && (rollCallVoteData[d.name] === 'no' || rollCallVoteData[d.name] === 'no_speak'))
-    return !p5Veto && voteCounts.value.yes >= 9
+    return !p5Veto && yes >= 9
   })
 
   function clearAllTimers() {
@@ -153,7 +159,7 @@ export const useConferenceStore = defineStore('conference', () => {
     modCaucusSpeakerTimer.value = 0; modCaucusTotalTimer.value = 0; modCaucusTopic.value = ''
     modCaucusDefaultSpeakTime.value = 0; p5Timer.value = 0; caucusTotalTimer.value = 0
     rollCallVoteStatus.value = 'voting'; votingRound2.value = false; currentVotingMotion.value = null
-    consensusResult.value = null
+    consensusResult.value = null; currentVotingDocId.value = null; votingTopic.value = ''
     recalcThresholds()
   }
 
@@ -165,6 +171,7 @@ export const useConferenceStore = defineStore('conference', () => {
     title.value = ''
     ownerUid.value = ''
     editors.value = {}
+    ruleset.value = 'unsc'
     loaded.value = false
     stateRef = null
     currentConferenceId = conferenceId
@@ -186,11 +193,21 @@ export const useConferenceStore = defineStore('conference', () => {
         if (JSON.stringify(nextAgenda) !== JSON.stringify(agenda.value)) agenda.value = nextAgenda
         if (meta.ownerUid !== ownerUid.value) ownerUid.value = meta.ownerUid || ''
         if (JSON.stringify(meta.editors) !== JSON.stringify(editors.value)) editors.value = meta.editors || {}
+        // 舊資料若只有 voteRule（尚未上線的過渡欄位），simple 對應到經社理事會，其餘視為安理會
+        const nextRuleset = meta.ruleset || (meta.voteRule === 'simple' ? 'ecosoc' : 'unsc')
+        if (nextRuleset !== ruleset.value) ruleset.value = nextRuleset
+
+        // 以快照為準完整鏡射 reactive 物件：除了更新既有鍵，也要刪掉快照中已不存在的鍵，
+        // 否則清空投票/點名/統計後，其他分頁（投影端、另一位主席）會殘留舊資料甚至寫回資料庫
+        const mirror = (target, src) => {
+          Object.keys(target).forEach(k => { if (!(k in src)) delete target[k] })
+          Object.keys(src).forEach(k => { if (JSON.stringify(target[k]) !== JSON.stringify(src[k])) target[k] = src[k] })
+        }
 
         if (s.meetingPhase !== meetingPhase.value) meetingPhase.value = s.meetingPhase ?? '正式辯論'
         if (s.screenMode !== screenMode.value) screenMode.value = s.screenMode ?? 'default'
         if (s.currentSection !== currentSection.value) currentSection.value = s.currentSection ?? '議程 1'
-        if (s.rollCallStatus) Object.keys(s.rollCallStatus).forEach(key => { if (rollCallStatus[key] !== s.rollCallStatus[key]) rollCallStatus[key] = s.rollCallStatus[key] })
+        mirror(rollCallStatus, s.rollCallStatus || {})
         if (s.isRollCallActive !== isRollCallActive.value) isRollCallActive.value = !!s.isRollCallActive
         if (s.rollCallFinished !== rollCallFinished.value) rollCallFinished.value = !!s.rollCallFinished
         recalcThresholds()
@@ -203,12 +220,20 @@ export const useConferenceStore = defineStore('conference', () => {
         const rawMotion = s.currentVotingMotion || null
         if (JSON.stringify(rawMotion) !== JSON.stringify(currentVotingMotion.value)) currentVotingMotion.value = rawMotion ? { ...rawMotion, details: rawMotion.details || {} } : null
         sortMotionQueue()
-        if (s.rollCallVoteData) Object.keys(s.rollCallVoteData).forEach(k => { if (rollCallVoteData[k] !== s.rollCallVoteData[k]) rollCallVoteData[k] = s.rollCallVoteData[k] })
+        mirror(rollCallVoteData, s.rollCallVoteData || {})
         if (s.rollCallVoteStatus !== rollCallVoteStatus.value) rollCallVoteStatus.value = s.rollCallVoteStatus || 'voting'
         if (s.votingRound2 !== votingRound2.value) votingRound2.value = !!s.votingRound2
+        if ((s.votingTopic || '') !== votingTopic.value) votingTopic.value = s.votingTopic || ''
         if (s.consensusResult !== consensusResult.value) consensusResult.value = s.consensusResult ?? null
-        if (s.stats) Object.keys(s.stats).forEach(key => { ensureStatsCountry(key); Object.assign(stats[key], s.stats[key]) })
-        if (JSON.stringify(s.documents) !== JSON.stringify(documents.value)) documents.value = (s.documents || []).map(doc => ({ status: doc.status || 'approved', ...doc }))
+        mirror(stats, s.stats || {})
+        const nextDocs = (s.documents || []).map((doc, i) => {
+          const d = { status: 'approved', ...doc }
+          if (d.id == null) d.id = 'legacy-' + i // 舊資料沒有 id，用索引補一個穩定值供修正案引用
+          if (d.type === 'DR' && !d.stage) d.stage = 'formal' // 舊資料的 DR 當年公告時即視為正式決議草案
+          return d
+        })
+        if (JSON.stringify(nextDocs) !== JSON.stringify(documents.value)) documents.value = nextDocs
+        if (s.currentVotingDocId !== currentVotingDocId.value) currentVotingDocId.value = s.currentVotingDocId ?? null
         if (JSON.stringify(s.speechNotes) !== JSON.stringify(speechNotes.value)) speechNotes.value = s.speechNotes || []
         if (s.p5Timer !== p5Timer.value) p5Timer.value = s.p5Timer ?? 0
         if (s.caucusTotalTimer !== caucusTotalTimer.value) caucusTotalTimer.value = s.caucusTotalTimer ?? 0
@@ -243,8 +268,9 @@ export const useConferenceStore = defineStore('conference', () => {
       modCaucusList: JSON.parse(JSON.stringify(modCaucusList.value)), currentModSpeaker: currentModSpeaker.value,
       isModCaucusRunning: isModCaucusRunning.value,
       rollCallVoteData: JSON.parse(JSON.stringify(rollCallVoteData)),
-      rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value,
-      consensusResult: consensusResult.value, speechNotes: JSON.parse(JSON.stringify(speechNotes.value))
+      rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value, votingTopic: votingTopic.value,
+      consensusResult: consensusResult.value, speechNotes: JSON.parse(JSON.stringify(speechNotes.value)),
+      currentVotingDocId: currentVotingDocId.value
     }).catch(() => {})
   }
 
@@ -260,7 +286,8 @@ export const useConferenceStore = defineStore('conference', () => {
       ownerUid: user.uid,
       createdAt: now,
       delegates: JSON.parse(JSON.stringify(DEFAULT_DELEGATES)),
-      agenda: DEFAULT_AGENDA()
+      agenda: DEFAULT_AGENDA(),
+      ruleset: 'unsc'
     }
     const updates = {}
     updates['conferences/' + id + '/meta'] = meta
@@ -269,15 +296,17 @@ export const useConferenceStore = defineStore('conference', () => {
     return id
   }
 
-  async function updateMeta({ title: newTitle, delegates: newDelegates, agenda: newAgenda }) {
+  async function updateMeta({ title: newTitle, delegates: newDelegates, agenda: newAgenda, ruleset: newRuleset }) {
     if (!ensureFB() || !currentConferenceId) return
     title.value = newTitle; delegates.value = newDelegates; agenda.value = newAgenda
+    if (newRuleset) ruleset.value = newRuleset
     const user = window.firebase.auth?.currentUser
     const updates = {}
     const base = 'conferences/' + currentConferenceId + '/meta/'
     updates[base + 'title'] = newTitle
     updates[base + 'delegates'] = JSON.parse(JSON.stringify(newDelegates))
     updates[base + 'agenda'] = JSON.parse(JSON.stringify(newAgenda))
+    if (newRuleset) updates[base + 'ruleset'] = newRuleset
     if (user) updates['users/' + user.uid + '/conferences/' + currentConferenceId + '/title'] = newTitle
     await updateFn(dbRefFn(window.firebase.db, '/'), updates)
   }
@@ -342,7 +371,7 @@ export const useConferenceStore = defineStore('conference', () => {
   function endVotingRollCall() { rollCallVoteStatus.value = 'finished'; sync() }
   function resetVoting() { delegates.value.forEach(d => { delete rollCallVoteData[d.name] }); rollCallVoteStatus.value = 'voting'; votingRound2.value = false; sync() }
   function setConsensusResult(result) { consensusResult.value = result; sync() }
-  function finishConsensus() { consensusResult.value = null; screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync() }
+  function finishConsensus() { consensusResult.value = null; votingTopic.value = ''; screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync() }
 
   // ✅ 修復：toggleGeneralTimer 競態條件
   function toggleGeneralTimer() {
@@ -457,8 +486,8 @@ export const useConferenceStore = defineStore('conference', () => {
     else if (m.type==='P5閉門協商') {
       screenMode.value='p5_closed'; meetingPhase.value='P5閉門協商'; p5Timer.value=600; sync()
       p5Interval=setInterval(()=>{ if(p5Interval&&p5Timer.value>0){p5Timer.value--;sync()} else{clearInterval(p5Interval);screenMode.value='default';meetingPhase.value='正式辯論';sync()} },1000)
-    } else if (m.type==='唱名表決') { startVotingRollCall() }
-    else if (m.type==='共識決') { screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync() }
+    } else if (m.type==='唱名表決') { votingTopic.value = m.details.topic || ''; startVotingRollCall() }
+    else if (m.type==='共識決') { votingTopic.value = m.details.topic || ''; consensusResult.value = null; screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync() }
     currentVotingMotion.value = null; motionQueue.value = []; sync()
   }
   // ✅ 修正：nextModSpeaker 正確處理「無」的初始狀態
@@ -546,24 +575,65 @@ export const useConferenceStore = defineStore('conference', () => {
     sync()
   }
 
-  async function uploadDocument(type, num, title, file) {
-    if (!type || !num || !title || !file) return
-    const fb = ensureStorage()
-    if (!fb || !currentConferenceId) { alert('⚠️ 檔案儲存服務尚未就緒，請稍後再試'); return }
-    try {
-      const path = `documents/${currentConferenceId}/${Date.now()}_${file.name}`
-      const fileRef = fb.storageMethods.ref(fb.storage, path)
-      await fb.storageMethods.uploadBytes(fileRef, file)
-      const fileURL = await fb.storageMethods.getDownloadURL(fileRef)
-      documents.value.push({ type, number: num, title, fileURL, path, status: 'pending', uploadedAt: Date.now() })
-      sync()
-    } catch (e) {
-      alert('❌ 上傳失敗，請重試')
+  async function uploadDocument(type, num, title, file, extra = {}) {
+    if (!type || !num || !title) return
+    if (!currentConferenceId) { alert('⚠️ 尚未載入會議，請稍後再試'); return }
+    const now = Date.now()
+    const doc = { id: now, type, number: num, title, status: 'pending', uploadedAt: now }
+    if (file) {
+      const fb = ensureStorage()
+      if (!fb) { alert('⚠️ 檔案儲存服務尚未就緒，請稍後再試'); return }
+      try {
+        const path = `documents/${currentConferenceId}/${now}_${file.name}`
+        const fileRef = fb.storageMethods.ref(fb.storage, path)
+        await fb.storageMethods.uploadBytes(fileRef, file)
+        doc.fileURL = await fb.storageMethods.getDownloadURL(fileRef)
+        doc.path = path
+      } catch (e) {
+        alert('❌ 上傳失敗，請重試')
+        return
+      }
     }
+    if (type === 'DR') doc.stage = 'potential' // 潛在決議草案，介紹表決通過後升級為正式
+    if (type === 'A') {
+      doc.targetDocId = extra.targetDocId ?? null
+      doc.clause = extra.clause || ''
+      doc.actionType = extra.actionType || '修改'
+      doc.changeText = extra.changeText || ''
+      doc.sponsor = extra.sponsor || ''
+      doc.voteStatus = null
+    }
+    documents.value.push(doc)
+    sync()
   }
   function reviewDocument(i, status) {
     if (!documents.value[i]) return
     documents.value[i].status = status
+    sync()
+  }
+  function introduceDocument(docId) {
+    const doc = documents.value.find(d => d.id === docId)
+    if (!doc) return
+    currentVotingDocId.value = docId
+    screenMode.value = 'doc_voting'
+    meetingPhase.value = doc.type === 'A' ? '修正案表決' : '介紹決議草案'
+    sync()
+  }
+  function resolveDocVote(passed) {
+    const doc = documents.value.find(d => d.id === currentVotingDocId.value)
+    if (doc) {
+      doc.voteStatus = passed ? 'passed' : 'failed'
+      if (doc.type === 'DR' && passed) doc.stage = 'formal'
+    }
+    currentVotingDocId.value = null
+    screenMode.value = 'default'
+    meetingPhase.value = '正式辯論'
+    sync()
+  }
+  function cancelDocVote() {
+    currentVotingDocId.value = null
+    screenMode.value = 'default'
+    meetingPhase.value = '正式辯論'
     sync()
   }
   function addSpeechNote(country, phase, note) {
@@ -574,7 +644,7 @@ export const useConferenceStore = defineStore('conference', () => {
   function deleteSpeechNote(id) { speechNotes.value = speechNotes.value.filter(n => n.id !== id); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
-  function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
+  function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; consensusResult.value=null; votingTopic.value=''; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
   function saveProgress() { sync() }
   function resetMeeting() {
     if (!confirm('⚠️ 確定要重置整個會議嗎？這將清除所有點名、投票、動議與統計紀錄，且無法復原！')) return
@@ -587,13 +657,14 @@ export const useConferenceStore = defineStore('conference', () => {
     title, delegates, agenda, loaded, ownerUid, editors,
     meetingPhase, screenMode, currentSection, rollCallStatus, isRollCallActive, rollCallFinished, rollCallThresholds,
     generalTimeLimit, generalList, currentGeneralSpeaker, generalSpeakerTimer, isGeneralTimerRunning,
-    motionQueue, currentVotingMotion, votingRound2, voteCounts, passedVote, rollCallVoteData, rollCallVoteStatus,
+    motionQueue, currentVotingMotion, votingRound2, votingTopic, ruleset, voteCounts, passedVote, rollCallVoteData, rollCallVoteStatus,
     stats, documents,
     p5Timer, caucusTotalTimer, modCaucusTopic, modCaucusTotalTimer, modCaucusSpeakerTimer, modCaucusDefaultSpeakTime, modCaucusList, currentModSpeaker, isModCaucusRunning,
     loadConference, createConference, updateMeta, clearStats, fetchConferenceTitle, joinAsEditor, leaveConference,
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
     submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
-    uploadDocument, reviewDocument, suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
+    uploadDocument, reviewDocument, currentVotingDocId, introduceDocument, resolveDocVote, cancelDocVote,
+    suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
     startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus,
     consensusResult, setConsensusResult, speechNotes, addSpeechNote, deleteSpeechNote,
     saveProgress, resetMeeting, recalcThresholds, sync

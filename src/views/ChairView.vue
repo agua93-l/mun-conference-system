@@ -19,6 +19,7 @@
         </select>
 
         <button class="btn btn-secondary btn-sm" @click="openScreenView">📺 代表端</button>
+        <button class="btn btn-secondary btn-sm" @click="openDocsView">📚 文件庫</button>
         <button class="btn btn-secondary btn-sm" @click="router.push('/stats/' + confId)">📊 統計</button>
 
         <div class="toolbar-spacer"></div>
@@ -44,10 +45,12 @@
         <!-- 唱名表決控制區 -->
         <div class="card" v-if="store.screenMode === 'voting_roll_call'">
           <h3>🗳️ 唱名表決控制</h3>
+          <div class="doc-vote-title" v-if="store.votingTopic">議題：{{ store.votingTopic }}</div>
           <div class="voting-controls-header">
             <span class="muted-text">輪次：{{ store.votingRound2 ? '第二輪 (僅贊成/反對)' : '第一輪 (完整)' }}</span>
             <div class="row-actions">
               <button class="btn btn-secondary btn-sm" v-if="!store.votingRound2" @click="store.nextVotingRound()">⏭️ 進入第二輪</button>
+              <button class="btn btn-ghost btn-sm" @click="handleResetVoting">🔄 重新表決</button>
               <button class="btn btn-primary btn-sm" @click="store.endVotingRollCall()">✅ 結束投票並顯示結果</button>
             </div>
           </div>
@@ -70,6 +73,7 @@
         <!-- 共識決控制區 -->
         <div class="card" v-else-if="store.screenMode === 'voting_consensus'">
           <h3>🤝 共識決投票</h3>
+          <div class="doc-vote-title" v-if="store.votingTopic">議題：{{ store.votingTopic }}</div>
           <div v-if="!store.consensusResult" class="consensus-controls">
             <button class="btn btn-success btn-block" @click="store.setConsensusResult('pass')">✅ 通過</button>
             <button class="btn btn-danger btn-block" @click="store.setConsensusResult('fail')">❌ 不通過</button>
@@ -78,6 +82,26 @@
             <p>結果已同步至代表端：<strong>{{ store.consensusResult === 'pass' ? '✅ 通過' : '❌ 不通過' }}</strong></p>
             <button class="btn btn-primary btn-block" @click="store.finishConsensus()">✅ 返回辯論</button>
           </div>
+        </div>
+
+        <!-- 文件介紹表決控制區 -->
+        <div class="card" v-else-if="store.screenMode === 'doc_voting' && votingDoc">
+          <h3>🗳️ {{ votingDoc.type === 'A' ? '修正案表決' : '介紹決議草案' }}</h3>
+          <div class="doc-vote-summary">
+            <div class="doc-vote-title">[{{ votingDoc.type }} {{ votingDoc.number }}] {{ votingDoc.title }}</div>
+            <template v-if="votingDoc.type === 'A'">
+              <div class="doc-vote-row"><span class="muted-text">提案國</span><span>{{ votingDoc.sponsor || '未指定' }}</span></div>
+              <div class="doc-vote-row"><span class="muted-text">目標草案</span><span>{{ docLabel(votingDoc.targetDocId) }}</span></div>
+              <div class="doc-vote-row"><span class="muted-text">條款</span><span>{{ votingDoc.clause }}</span></div>
+              <div class="doc-vote-row"><span class="muted-text">修改類型</span><span class="badge badge-accent">{{ votingDoc.actionType }}</span></div>
+              <p class="doc-vote-change">{{ votingDoc.changeText }}</p>
+            </template>
+          </div>
+          <div class="consensus-controls">
+            <button class="btn btn-success btn-block" @click="store.resolveDocVote(true)">✅ 通過</button>
+            <button class="btn btn-danger btn-block" @click="store.resolveDocVote(false)">❌ 不通過</button>
+          </div>
+          <button class="btn btn-ghost btn-block cancel-doc-vote" @click="store.cancelDocVote()">取消，返回辯論（不記錄結果）</button>
         </div>
 
         <!-- 常設發言人名單 -->
@@ -117,7 +141,7 @@
         </div>
 
         <!-- 點名系統 -->
-        <div class="card roll-call-control" v-if="store.screenMode !== 'voting_roll_call' && store.screenMode !== 'voting_consensus'">
+        <div class="card roll-call-control" v-if="!['voting_roll_call', 'voting_consensus', 'doc_voting'].includes(store.screenMode)">
           <h3>📋 點名系統</h3>
           <div v-if="!store.isRollCallActive" class="rc-trigger">
             <button class="btn btn-primary btn-block" @click="store.startRollCall()">📢 開始點名 (同步至代表端)</button>
@@ -160,6 +184,9 @@
               <input v-model.number="mDetails.totalTime" type="number" placeholder="總時長(分)" />
               <input v-model.number="mDetails.speakTime" type="number" placeholder="每人發言(秒)" />
             </template>
+            <template v-if="mType === '唱名表決' || mType === '共識決'">
+              <input v-model="mDetails.topic" placeholder="表決議題（如：決議草案 DR 1.1）" />
+            </template>
             <button class="btn btn-primary btn-block" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
           </div>
 
@@ -178,25 +205,55 @@
         </div>
 
         <div class="card">
-          <h3>📄 決議草案／修正案上傳與審核</h3>
+          <h3>📄 文件上傳與審核</h3>
           <div class="input-row">
-            <select v-model="docType"><option value="WD">工作文件 (WD)</option><option value="DR">決議草案 (DR)</option><option value="A">修正案 (A)</option></select>
+            <select v-model="docType"><option value="WD">工作文件 (WD)</option><option value="DR">潛在決議草案 (DR)</option><option value="A">修正案 (A)</option></select>
             <input v-model="docNumber" placeholder="編號 (如 1.1)" /><input v-model="docTitle" placeholder="標題/議題" />
           </div>
+          <template v-if="docType === 'A'">
+            <div class="input-row">
+              <select v-model="aTarget">
+                <option value="">目標決議草案</option>
+                <option v-for="d in targetableDocs" :key="d.id" :value="d.id">[DR {{ d.number }}] {{ d.title }}</option>
+              </select>
+              <select v-model="aSponsor">
+                <option value="">提案國（選填）</option>
+                <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <input v-model="aClause" placeholder="條款（如 OP3、PP2）" />
+              <select v-model="aAction" class="action-select">
+                <option value="新增">新增</option>
+                <option value="修改">修改</option>
+                <option value="刪除">刪除</option>
+              </select>
+            </div>
+            <textarea v-model="aChange" class="amend-textarea" rows="3" placeholder="修改內容（新增/修改後的完整條款文字，或說明刪除範圍）"></textarea>
+          </template>
           <div class="input-row">
             <input ref="docFileInput" type="file" @change="onDocFileChange" />
-            <button class="btn btn-primary" :disabled="!docType || !docNumber || !docTitle || !docFile || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
+            <button class="btn btn-primary" :disabled="!canSubmitDoc || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
           </div>
+          <p v-if="docType === 'A'" class="muted-text form-hint">修正案的檔案為選填，投影與文件庫會直接顯示上面填的結構化內容。</p>
           <div class="doc-review-list">
-            <div v-for="(doc, i) in store.documents" :key="doc.number + doc.type + i" class="doc-review-item" :class="doc.status">
+            <div v-for="(doc, i) in store.documents" :key="doc.id ?? (doc.number + doc.type + i)" class="doc-review-item" :class="doc.status">
               <div class="doc-review-main">
                 <span class="badge badge-neutral">[{{ doc.type }} {{ doc.number }}] {{ doc.title }}</span>
+                <span v-if="doc.type === 'DR'" class="badge" :class="doc.stage === 'formal' ? 'badge-accent' : 'badge-neutral'">{{ doc.stage === 'formal' ? '決議草案' : '潛在' }}</span>
+                <span v-if="doc.voteStatus" class="badge" :class="doc.voteStatus === 'passed' ? 'badge-success' : 'badge-danger'">{{ doc.voteStatus === 'passed' ? '表決通過' : '表決未過' }}</span>
                 <a v-if="doc.fileURL" :href="doc.fileURL" target="_blank" class="doc-link">📎 檔案</a>
                 <span class="badge" :class="doc.status === 'pending' ? 'badge-warning' : doc.status === 'rejected' ? 'badge-danger' : 'badge-success'">{{ doc.status === 'pending' ? '⏳ 待審' : doc.status === 'rejected' ? '❌ 已退回' : '✅ 已通過' }}</span>
+              </div>
+              <div v-if="doc.type === 'A'" class="amend-summary muted-text">
+                {{ docLabel(doc.targetDocId) }} · {{ doc.clause }} · {{ doc.actionType }}{{ doc.sponsor ? ' · 提案國：' + doc.sponsor : '' }}
               </div>
               <div class="row-actions" v-if="doc.status === 'pending'">
                 <button class="btn btn-success btn-sm" @click="store.reviewDocument(i, 'approved')">✓ 通過</button>
                 <button class="btn btn-danger btn-sm" @click="store.reviewDocument(i, 'rejected')">✗ 退回</button>
+              </div>
+              <div class="row-actions" v-else-if="canIntroduce(doc)">
+                <button class="btn btn-warning btn-sm" @click="store.introduceDocument(doc.id)">📢 介紹表決</button>
               </div>
             </div>
             <div v-if="store.documents.length === 0" class="empty">尚無公告文件</div>
@@ -261,6 +318,7 @@
           <button class="btn btn-danger" @click="setVote('no')">❌ 反對</button>
           <button class="btn btn-danger" @click="setVote('no_speak')" v-if="!store.votingRound2">🗣️ 反對並發言</button>
           <button class="btn btn-secondary" @click="setVote('abstain')" v-if="!store.votingRound2">⚪ 棄權</button>
+          <button class="btn btn-secondary" @click="setVote('abstain_speak')" v-if="!store.votingRound2 && store.ruleset === 'ecosoc'">🗣️ 棄權並發言</button>
           <button class="btn btn-warning" @click="setVote('pass')" v-if="!store.votingRound2">⏭️ 跳過</button>
         </div>
       </div>
@@ -284,6 +342,7 @@ const modSelCountry = ref(''); const timeLimitInput = ref(60); const docType = r
 const currentTime = ref('')
 const showVoteModal = ref(false); const votingTargetCountry = ref('')
 const docFile = ref(null); const docFileInput = ref(null); const docUploading = ref(false)
+const aTarget = ref(''); const aSponsor = ref(''); const aClause = ref(''); const aAction = ref('修改'); const aChange = ref('')
 const speechNoteText = ref('')
 const showMoreMenu = ref(false)
 let clockInterval = null
@@ -292,14 +351,34 @@ const activeSpeaker = computed(() => store.currentModSpeaker || store.currentGen
 const sortedMiniStats = computed(() => Object.entries(store.stats)
   .map(([name, v]) => ({ name, speeches: v.speeches, motionsPassed: v.motionsPassed || 0 }))
   .sort((a, b) => b.speeches - a.speeches))
+const targetableDocs = computed(() => store.documents.filter(d => d.type === 'DR' && d.status === 'approved'))
+const votingDoc = computed(() => store.documents.find(d => d.id === store.currentVotingDocId) || null)
+const canSubmitDoc = computed(() => {
+  if (!docType.value || !docNumber.value || !docTitle.value) return false
+  if (docType.value === 'A') return !!(aTarget.value && aClause.value.trim() && aChange.value.trim())
+  return !!docFile.value
+})
 
+function docLabel(docId) {
+  const d = store.documents.find(x => x.id === docId)
+  return d ? `[${d.type} ${d.number}] ${d.title}` : '（找不到目標草案）'
+}
+function canIntroduce(doc) {
+  if (doc.status !== 'approved' || store.screenMode === 'doc_voting') return false
+  if (doc.type === 'A') return doc.voteStatus !== 'passed'
+  if (doc.type === 'DR') return doc.stage !== 'formal'
+  return false
+}
 function onDocFileChange(e) { docFile.value = e.target.files[0] || null }
 async function submitDocUpload() {
-  if (!docFile.value) return
   docUploading.value = true
-  await store.uploadDocument(docType.value, docNumber.value, docTitle.value, docFile.value)
+  const extra = docType.value === 'A'
+    ? { targetDocId: aTarget.value, sponsor: aSponsor.value, clause: aClause.value.trim(), actionType: aAction.value, changeText: aChange.value.trim() }
+    : {}
+  await store.uploadDocument(docType.value, docNumber.value, docTitle.value, docFile.value, extra)
   docUploading.value = false
   docNumber.value = ''; docTitle.value = ''; docFile.value = null
+  aTarget.value = ''; aSponsor.value = ''; aClause.value = ''; aAction.value = '修改'; aChange.value = ''
   if (docFileInput.value) docFileInput.value.value = ''
 }
 function submitSpeechNote() {
@@ -312,10 +391,12 @@ function submitSpeechNote() {
 function formatTime(sec) { const m = Math.floor((sec || 0) / 60); const s = (sec || 0) % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 function handleLogout() { const { auth, authMethods } = window.firebase; authMethods.signOut(auth).then(() => { router.push('/login') }) }
 function openScreenView() { const r = router.resolve('/screen/' + confId); window.open(r.href, '_blank') }
+function openDocsView() { const r = router.resolve('/docs/' + confId); window.open(r.href, '_blank') }
 async function clearStats() { if (!confirm('⚠️ 確定要清除統計？')) return; try { await store.clearStats(); alert('✅ 已清除') } catch(e) { alert('❌ 失敗') } }
+function handleResetVoting() { if (!confirm('⚠️ 確定要清空目前所有已投的票，重新開始這次唱名表決嗎？')) return; store.resetVoting() }
 function openVoteModal(country) { votingTargetCountry.value = country; showVoteModal.value = true }
 function setVote(voteType) { store.recordRollCallVote(votingTargetCountry.value, voteType); showVoteModal.value = false }
-function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'🗣️ 反對並發言', abstain:'⚪ 棄權', pass:'⏭️ 跳過' }[vote] || '' }
+function getVoteLabel(vote) { return { yes:'✅ 贊成', yes_speak:'🗣️ 贊成並發言', no:'❌ 反對', no_speak:'🗣️ 反對並發言', abstain:'⚪ 棄權', abstain_speak:'🗣️ 棄權並發言', pass:'⏭️ 跳過' }[vote] || '' }
 function handleSaveProgress() { store.saveProgress(); alert('✅ 會議進度已儲存 (已同步至雲端)') }
 
 watch(() => store.title, (t) => { document.title = t ? t + ' - 主席控制台' : 'MUN 主席控制台' })
@@ -400,6 +481,16 @@ h3 { font-size: 1rem; margin: 0 0 14px 0; padding-bottom: 10px; border-bottom: 1
 .consensus-controls { display: flex; gap: 10px; margin-top: 10px; }
 .consensus-result-box { text-align: center; padding: 10px 0; }
 .consensus-result-box p { font-size: 1rem; margin-bottom: 15px; }
+
+.doc-vote-summary { background: var(--color-bg); border-radius: var(--radius-md); padding: 14px; margin-bottom: 12px; }
+.doc-vote-title { font-weight: 600; margin-bottom: 10px; }
+.doc-vote-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.9rem; }
+.doc-vote-change { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px; margin: 10px 0 0 0; font-size: 0.9rem; white-space: pre-wrap; }
+.cancel-doc-vote { margin-top: 8px; }
+.amend-textarea { width: 100%; margin-bottom: 10px; resize: vertical; font-family: inherit; }
+.action-select { flex: 0 0 110px; }
+.form-hint { font-size: 0.8rem; margin: -4px 0 10px 0; }
+.amend-summary { font-size: 0.8rem; margin-top: 6px; }
 
 .queue-list { max-height: 160px; overflow-y: auto; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
 .queue-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--color-warning-soft); border-radius: var(--radius-sm); }
