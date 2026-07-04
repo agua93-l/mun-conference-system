@@ -36,7 +36,7 @@
       <!-- 唱名表決模式 -->
       <section v-else-if="store.screenMode === 'voting_roll_call'" class="mode-panel voting-panel">
         <h2 class="voting-title">🗳️ 唱名表決</h2>
-        <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
+        <div class="voting-topic">議題：{{ store.votingTopic || '未指定' }}</div>
         
         <div v-if="store.rollCallVoteStatus === 'voting'" class="vote-in-progress">
           <div class="round-label">第 {{ store.votingRound2 ? '二' : '一' }} 輪投票</div>
@@ -52,7 +52,7 @@
           <div class="result-banner" :class="{ passed: store.passedVote }">
             <h3>{{ store.passedVote ? '✅ 動議通過' : '❌ 動議未通過' }}</h3>
             <p>贊成: {{ store.voteCounts.yes }} | 反對: {{ store.voteCounts.no }} | 棄權: {{ store.voteCounts.abstain }}</p>
-            <p v-if="!store.passedVote" class="reason">{{ p5VetoReason || '贊成票未達 9 票門檻' }}</p>
+            <p v-if="!store.passedVote" class="reason">{{ p5VetoReason || failThresholdReason }}</p>
           </div>
           <div class="countries-grid final">
             <div v-for="d in store.delegates.filter(x => x.type === 'member')" :key="d.name" class="country-card final">
@@ -66,11 +66,26 @@
       <!-- 共識決投票 -->
       <section v-else-if="store.screenMode === 'voting_consensus'" class="mode-panel voting-panel">
         <h2 class="voting-title">🤝 共識決表決</h2>
-        <div class="voting-topic">議題：{{ store.currentVotingMotion?.details?.topic || '未指定' }}</div>
+        <div class="voting-topic">議題：{{ store.votingTopic || '未指定' }}</div>
         <div v-if="!store.consensusResult" class="consensus-pending">尋求共識中...</div>
         <div v-else class="result-banner" :class="{ passed: store.consensusResult === 'pass' }">
           <h3>{{ store.consensusResult === 'pass' ? '✅ 共識決通過' : '❌ 共識決未通過' }}</h3>
         </div>
+      </section>
+
+      <!-- 文件介紹表決（修正案／潛在決議草案） -->
+      <section v-else-if="store.screenMode === 'doc_voting' && votingDoc" class="mode-panel doc-voting-panel">
+        <h2 class="voting-title">{{ votingDoc.type === 'A' ? '🗳️ 修正案表決' : '🗳️ 介紹決議草案' }}</h2>
+        <div class="doc-voting-head">[{{ votingDoc.type }} {{ votingDoc.number }}] {{ votingDoc.title }}</div>
+        <template v-if="votingDoc.type === 'A'">
+          <div class="amend-info-grid">
+            <div class="amend-info-item"><span class="amend-label">提案國</span><strong>{{ votingDoc.sponsor || '未指定' }}</strong></div>
+            <div class="amend-info-item"><span class="amend-label">目標草案</span><strong>{{ votingTargetLabel }}</strong></div>
+            <div class="amend-info-item"><span class="amend-label">條款</span><strong>{{ votingDoc.clause }}</strong></div>
+            <div class="amend-info-item"><span class="amend-label">修改類型</span><strong class="amend-action">{{ votingDoc.actionType }}</strong></div>
+          </div>
+          <div class="amend-change-display">{{ votingDoc.changeText }}</div>
+        </template>
       </section>
 
       <!-- 動議表決模式 -->
@@ -184,15 +199,25 @@ watch(() => store.title, (t) => { document.title = t ? t + ' - 會議畫面' : '
 function formatTime(sec) { if (!sec && sec !== 0) return '00:00'; const m = Math.floor(sec / 60); const s = sec % 60; return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` }
 
 function getVoteIcon(vote) {
-  const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '⚪', pass: '⏭️' }
+  const map = { yes: '✅', yes_speak: '🗣️✅', no: '❌', no_speak: '🗣️❌', abstain: '⚪', abstain_speak: '🗣️⚪', pass: '⏭️' }
   return map[vote] || ''
 }
 
 const approvedDocuments = computed(() => store.documents.filter(d => d.status === 'approved'))
+const votingDoc = computed(() => store.documents.find(d => d.id === store.currentVotingDocId) || null)
+const votingTargetLabel = computed(() => {
+  const t = store.documents.find(d => d.id === votingDoc.value?.targetDocId)
+  return t ? `[${t.type} ${t.number}] ${t.title}` : '未指定'
+})
 
 const p5VetoReason = computed(() => {
+  if (store.ruleset !== 'unsc') return '' // 經社理事會沒有 P5 否決權
   const vetoers = store.delegates.filter(d => d.p5 && (store.rollCallVoteData[d.name] === 'no' || store.rollCallVoteData[d.name] === 'no_speak'))
   return vetoers.length > 0 ? `五常 (${vetoers.map(v => v.name).join(', ')}) 行使否決權` : ''
+})
+const failThresholdReason = computed(() => {
+  if (store.ruleset === 'ecosoc') return '贊成票未超過反對票'
+  return '贊成票未達 9 票門檻'
 })
 
 onMounted(() => {
@@ -241,6 +266,15 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .reason { color: #f87171; font-weight: bold; }
 
 .consensus-pending { font-size: 2rem; color: #94a3b8; margin-top: 40px; }
+
+.doc-voting-panel { padding: 40px 24px; max-width: 1200px; margin: 0 auto; }
+.doc-voting-head { font-size: 2.4rem; font-weight: 700; color: #e2e8f0; margin-bottom: 30px; }
+.amend-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 30px; }
+.amend-info-item { background: #1e293b; padding: 18px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.amend-label { font-size: 1.1rem; color: #94a3b8; }
+.amend-info-item strong { font-size: 1.6rem; color: #e2e8f0; }
+.amend-action { color: #fbbf24; }
+.amend-change-display { background: #1e293b; border: 2px solid #334155; border-radius: 16px; padding: 30px; font-size: 2rem; line-height: 1.7; color: #f8fafc; text-align: left; white-space: pre-wrap; }
 
 .mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
 .mod-header-large { margin-bottom: 30px; }
