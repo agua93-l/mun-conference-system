@@ -73,6 +73,33 @@
         </div>
       </section>
 
+      <!-- 修正案辯論：特設發言人名單（支持／反對） -->
+      <section v-else-if="store.screenMode === 'amend_debate' && votingDoc" class="mode-panel doc-voting-panel">
+        <h2 class="voting-title">🎤 修正案辯論</h2>
+        <div class="doc-voting-head">[{{ votingDoc.type }} {{ votingDoc.number }}] {{ votingDoc.title }}</div>
+        <div class="amend-change-display">{{ votingDoc.changeText }}</div>
+        <div class="amend-debate-split">
+          <div class="amend-current-box">
+            <div class="amend-label">當前發言人</div>
+            <div class="amend-current-name">{{ store.currentAmendSpeaker || '無' }}</div>
+            <div v-if="store.currentAmendSide" class="amend-side-tag" :class="store.currentAmendSide">{{ store.currentAmendSide === 'for' ? '支持' : '反對' }}</div>
+            <div class="amend-current-timer">{{ formatTime(store.amendSpeakerTimer) }}</div>
+          </div>
+          <div class="amend-queue-box">
+            <div class="amend-queue-col">
+              <div class="amend-col-head for">支持</div>
+              <div v-for="(s, i) in forSpeakers" :key="'f'+i" class="amend-queue-name">{{ s.country }}</div>
+              <div v-if="forSpeakers.length === 0" class="amend-empty">—</div>
+            </div>
+            <div class="amend-queue-col">
+              <div class="amend-col-head against">反對</div>
+              <div v-for="(s, i) in againstSpeakers" :key="'a'+i" class="amend-queue-name">{{ s.country }}</div>
+              <div v-if="againstSpeakers.length === 0" class="amend-empty">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 文件介紹表決（修正案／潛在決議草案） -->
       <section v-else-if="store.screenMode === 'doc_voting' && votingDoc" class="mode-panel doc-voting-panel">
         <h2 class="voting-title">{{ votingDoc.type === 'A' ? '🗳️ 修正案表決' : '🗳️ 介紹決議草案' }}</h2>
@@ -209,6 +236,8 @@ const votingTargetLabel = computed(() => {
   const t = store.documents.find(d => d.id === votingDoc.value?.targetDocId)
   return t ? `[${t.type} ${t.number}] ${t.title}` : '未指定'
 })
+const forSpeakers = computed(() => store.amendSpeakers.filter(s => s.side === 'for'))
+const againstSpeakers = computed(() => store.amendSpeakers.filter(s => s.side === 'against'))
 
 const p5VetoReason = computed(() => {
   if (store.ruleset !== 'unsc') return '' // 經社理事會沒有 P5 否決權
@@ -275,6 +304,20 @@ h1 { margin: 0; font-size: 2.5rem; color: #f8fafc; text-align: center; flex: 1; 
 .amend-info-item strong { font-size: 1.6rem; color: #e2e8f0; }
 .amend-action { color: #fbbf24; }
 .amend-change-display { background: #1e293b; border: 2px solid #334155; border-radius: 16px; padding: 30px; font-size: 2rem; line-height: 1.7; color: #f8fafc; text-align: left; white-space: pre-wrap; }
+.amend-debate-split { display: flex; gap: 24px; margin-top: 24px; }
+.amend-current-box { flex: 1; background: #1e293b; border-radius: 16px; padding: 24px; text-align: center; }
+.amend-current-name { font-size: 3rem; font-weight: 800; color: #fbbf24; margin: 10px 0; }
+.amend-side-tag { display: inline-block; padding: 4px 16px; border-radius: 999px; font-size: 1.4rem; font-weight: 700; margin-bottom: 12px; }
+.amend-side-tag.for { background: #052e16; color: #4ade80; }
+.amend-side-tag.against { background: #450a0a; color: #f87171; }
+.amend-current-timer { font-size: 3rem; font-family: ui-monospace, monospace; font-weight: bold; color: #38bdf8; }
+.amend-queue-box { flex: 1; display: flex; gap: 16px; }
+.amend-queue-col { flex: 1; background: #1e293b; border-radius: 16px; padding: 16px; }
+.amend-col-head { text-align: center; font-size: 1.5rem; font-weight: 700; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #334155; }
+.amend-col-head.for { color: #4ade80; } .amend-col-head.against { color: #f87171; }
+.amend-queue-name { font-size: 1.8rem; padding: 8px 4px; text-align: center; color: #e2e8f0; }
+.amend-empty { text-align: center; color: #64748b; padding: 8px; }
+.amend-label { font-size: 1.4rem; color: #94a3b8; }
 
 .mod-panel-layout { padding: 20px; display: flex; flex-direction: column; height: calc(100vh - 120px); }
 .mod-header-large { margin-bottom: 30px; }

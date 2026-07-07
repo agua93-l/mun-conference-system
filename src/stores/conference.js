@@ -86,7 +86,15 @@ export const useConferenceStore = defineStore('conference', () => {
   const currentModSpeaker = ref('')
   const isModCaucusRunning = ref(false)
 
-  let generalInterval = null, caucusInterval = null, modCaucusInterval = null, p5Interval = null
+  // 修正案辯論：介紹修正案後開設的特設發言人名單（支持／反對）
+  const amendSpeakers = ref([]) // [{ country, side: 'for'|'against', time }]
+  const currentAmendSpeaker = ref('')
+  const currentAmendSide = ref('')
+  const amendSpeakerTimer = ref(0)
+  const amendDefaultTime = ref(60)
+  const isAmendTimerRunning = ref(false)
+
+  let generalInterval = null, caucusInterval = null, modCaucusInterval = null, p5Interval = null, amendInterval = null
   let stateRef = null
   let currentConferenceId = null
   let unsubscribe = null
@@ -141,9 +149,9 @@ export const useConferenceStore = defineStore('conference', () => {
   })
 
   function clearAllTimers() {
-    [generalInterval, caucusInterval, modCaucusInterval, p5Interval].forEach(t => t && clearInterval(t))
-    generalInterval = caucusInterval = modCaucusInterval = p5Interval = null
-    isGeneralTimerRunning.value = false; isModCaucusRunning.value = false
+    [generalInterval, caucusInterval, modCaucusInterval, p5Interval, amendInterval].forEach(t => t && clearInterval(t))
+    generalInterval = caucusInterval = modCaucusInterval = p5Interval = amendInterval = null
+    isGeneralTimerRunning.value = false; isModCaucusRunning.value = false; isAmendTimerRunning.value = false
   }
 
   // 重置「會議進行狀態」，不動標題／代表清單／議程設定。resetMeeting() 與 loadConference() 共用。
@@ -160,6 +168,7 @@ export const useConferenceStore = defineStore('conference', () => {
     modCaucusDefaultSpeakTime.value = 0; p5Timer.value = 0; caucusTotalTimer.value = 0
     rollCallVoteStatus.value = 'voting'; votingRound2.value = false; currentVotingMotion.value = null
     consensusResult.value = null; currentVotingDocId.value = null; votingTopic.value = ''
+    amendSpeakers.value = []; currentAmendSpeaker.value = ''; currentAmendSide.value = ''; amendSpeakerTimer.value = 0; amendDefaultTime.value = 60
     recalcThresholds()
   }
 
@@ -244,6 +253,12 @@ export const useConferenceStore = defineStore('conference', () => {
         if (s.modCaucusList && JSON.stringify(s.modCaucusList) !== JSON.stringify(modCaucusList.value)) modCaucusList.value = s.modCaucusList
         if (s.currentModSpeaker !== currentModSpeaker.value) currentModSpeaker.value = s.currentModSpeaker || ''
         if (s.isModCaucusRunning !== isModCaucusRunning.value) isModCaucusRunning.value = !!s.isModCaucusRunning
+        if (JSON.stringify(s.amendSpeakers) !== JSON.stringify(amendSpeakers.value)) amendSpeakers.value = s.amendSpeakers || []
+        if (s.currentAmendSpeaker !== currentAmendSpeaker.value) currentAmendSpeaker.value = s.currentAmendSpeaker || ''
+        if (s.currentAmendSide !== currentAmendSide.value) currentAmendSide.value = s.currentAmendSide || ''
+        if (s.amendSpeakerTimer !== amendSpeakerTimer.value) amendSpeakerTimer.value = s.amendSpeakerTimer ?? 0
+        if (s.amendDefaultTime !== amendDefaultTime.value) amendDefaultTime.value = s.amendDefaultTime ?? 60
+        if (s.isAmendTimerRunning !== isAmendTimerRunning.value) isAmendTimerRunning.value = !!s.isAmendTimerRunning
         loaded.value = true
       })
     }
@@ -270,7 +285,10 @@ export const useConferenceStore = defineStore('conference', () => {
       rollCallVoteData: JSON.parse(JSON.stringify(rollCallVoteData)),
       rollCallVoteStatus: rollCallVoteStatus.value, votingRound2: votingRound2.value, votingTopic: votingTopic.value,
       consensusResult: consensusResult.value, speechNotes: JSON.parse(JSON.stringify(speechNotes.value)),
-      currentVotingDocId: currentVotingDocId.value
+      currentVotingDocId: currentVotingDocId.value,
+      amendSpeakers: JSON.parse(JSON.stringify(amendSpeakers.value)), currentAmendSpeaker: currentAmendSpeaker.value,
+      currentAmendSide: currentAmendSide.value, amendSpeakerTimer: amendSpeakerTimer.value,
+      amendDefaultTime: amendDefaultTime.value, isAmendTimerRunning: isAmendTimerRunning.value
     }).catch(() => {})
   }
 
@@ -466,11 +484,28 @@ export const useConferenceStore = defineStore('conference', () => {
     ensureStatsCountry(country); if (!stats[country].motions[type]) stats[country].motions[type] = 0; stats[country].motions[type]++
     sync()
   }
-  function approveMotion(i) {
+  // 主席受理動議：把該動議放上投影供表決。介紹修正案不經程序性投票，直接開特設發言人名單。
+  function bringMotionToVote(i) {
     if (i<0||i>=motionQueue.value.length) return
     const m = motionQueue.value[i]
+    motionQueue.value.splice(i,1)
+    if (m.type === '介紹修正案') { introduceAmendment(m.details?.docId, m.country); return }
+    currentVotingMotion.value = m; screenMode.value = 'motion_voting'; sync()
+  }
+  // 駁回佇列中指定的動議（依索引移除，不影響其他動議）
+  function rejectMotion(i) {
+    if (typeof i !== 'number' || i<0 || i>=motionQueue.value.length) return
+    motionQueue.value.splice(i,1); sync()
+  }
+  // 程序性表決通過：記錄動議成功並執行
+  function passMotionVote() {
+    const m = currentVotingMotion.value; if (!m) return
     ensureStatsCountry(m.country); stats[m.country].motionsPassed = (stats[m.country].motionsPassed || 0) + 1
-    currentVotingMotion.value = m; motionQueue.value.splice(i,1); screenMode.value = 'motion_voting'; sync()
+    executeMotion()
+  }
+  // 程序性表決未通過：丟棄該動議，返回辯論（保留佇列中其他動議）
+  function failMotionVote() {
+    currentVotingMotion.value = null; screenMode.value = 'default'; meetingPhase.value = '正式辯論'; sync()
   }
   function executeMotion() {
     const m = currentVotingMotion.value; if (!m) return; clearAllTimers()
@@ -488,7 +523,65 @@ export const useConferenceStore = defineStore('conference', () => {
       p5Interval=setInterval(()=>{ if(p5Interval&&p5Timer.value>0){p5Timer.value--;sync()} else{clearInterval(p5Interval);screenMode.value='default';meetingPhase.value='正式辯論';sync()} },1000)
     } else if (m.type==='唱名表決') { votingTopic.value = m.details.topic || ''; startVotingRollCall() }
     else if (m.type==='共識決') { votingTopic.value = m.details.topic || ''; consensusResult.value = null; screenMode.value = 'voting_consensus'; meetingPhase.value = '共識決'; sync() }
+    else if (m.type==='介紹決議草案') {
+      // 介紹決議草案的程序性投票通過即成為正式決議草案
+      const doc = documents.value.find(d => d.id === m.details?.docId)
+      if (doc && doc.type === 'DR') { doc.stage = 'formal'; doc.voteStatus = 'passed' }
+      screenMode.value='default'; meetingPhase.value='正式辯論'; sync()
+    }
     currentVotingMotion.value = null; motionQueue.value = []; sync()
+  }
+  // 介紹修正案：開設特設發言人名單（支持／反對），辯論後再進行實質性表決
+  function introduceAmendment(docId, sponsorCountry) {
+    if (!docId) { alert('⚠️ 此動議未指定修正案'); return }
+    clearAllTimers()
+    currentVotingDocId.value = docId
+    amendSpeakers.value = []; currentAmendSpeaker.value = ''; currentAmendSide.value = ''
+    amendSpeakerTimer.value = 0; isAmendTimerRunning.value = false
+    screenMode.value = 'amend_debate'; meetingPhase.value = '修正案辯論'
+    if (sponsorCountry) { ensureStatsCountry(sponsorCountry); stats[sponsorCountry].motionsPassed = (stats[sponsorCountry].motionsPassed || 0) + 1 }
+    sync()
+  }
+  function addAmendSpeaker(country, side) {
+    if (!country || !side) return
+    if (amendSpeakers.value.find(s => s.country === country)) return
+    amendSpeakers.value.push({ country, side, time: amendDefaultTime.value || 60 }); sync()
+  }
+  function nextAmendSpeaker() {
+    if (amendSpeakers.value.length === 0) {
+      currentAmendSpeaker.value = ''; currentAmendSide.value = ''; amendSpeakerTimer.value = 0
+      isAmendTimerRunning.value = false
+      if (amendInterval) { clearInterval(amendInterval); amendInterval = null }
+      sync(); return
+    }
+    const isEmpty = !currentAmendSpeaker.value
+    let spk
+    if (isEmpty) { spk = amendSpeakers.value[0] }
+    else { const l = [...amendSpeakers.value]; l.shift(); amendSpeakers.value = l; spk = l[0] }
+    currentAmendSpeaker.value = spk?.country || ''
+    currentAmendSide.value = spk?.side || ''
+    amendSpeakerTimer.value = spk?.time || 0
+    isAmendTimerRunning.value = false
+    if (amendInterval) { clearInterval(amendInterval); amendInterval = null }
+    sync()
+  }
+  function toggleAmendTimer() {
+    if (isAmendTimerRunning.value) {
+      if (amendInterval) { clearInterval(amendInterval); amendInterval = null }
+      isAmendTimerRunning.value = false; sync()
+    } else {
+      if (amendSpeakerTimer.value <= 0) return
+      isAmendTimerRunning.value = true; sync()
+      amendInterval = setInterval(() => {
+        if (amendSpeakerTimer.value > 0) { amendSpeakerTimer.value--; sync() }
+        else { if (amendInterval) { clearInterval(amendInterval); amendInterval = null }; isAmendTimerRunning.value = false; sync() }
+      }, 1000)
+    }
+  }
+  // 修正案辯論結束，進入實質性表決
+  function startAmendVote() {
+    clearAllTimers()
+    screenMode.value = 'doc_voting'; meetingPhase.value = '修正案表決'; sync()
   }
   // ✅ 修正：nextModSpeaker 正確處理「無」的初始狀態
   function nextModSpeaker() {
@@ -558,23 +651,6 @@ export const useConferenceStore = defineStore('conference', () => {
     }
   }
 
-  // ✅ 修正：rejectMotion - 直接刪除，不進入投票
-  function rejectMotion() {
-    currentVotingMotion.value = null
-    // 直接從佇列移除，不進入投票流程
-    if (motionQueue.value.length > 0) {
-      sortMotionQueue()
-      // 如果有下一個動議，繼續顯示
-      currentVotingMotion.value = motionQueue.value.shift()
-      screenMode.value = 'motion_voting'
-    } else {
-      // 如果佇列為空，返回正式辯論
-      screenMode.value = 'default'
-      meetingPhase.value = '正式辯論'
-    }
-    sync()
-  }
-
   async function uploadDocument(type, num, title, file, extra = {}) {
     if (!type || !num || !title) return
     if (!currentConferenceId) { alert('⚠️ 尚未載入會議，請稍後再試'); return }
@@ -614,9 +690,11 @@ export const useConferenceStore = defineStore('conference', () => {
   function introduceDocument(docId) {
     const doc = documents.value.find(d => d.id === docId)
     if (!doc) return
+    // 修正案：先開特設發言人名單辯論，再進實質表決；決議草案：直接進程序性表決
+    if (doc.type === 'A') { introduceAmendment(docId, null); return }
     currentVotingDocId.value = docId
     screenMode.value = 'doc_voting'
-    meetingPhase.value = doc.type === 'A' ? '修正案表決' : '介紹決議草案'
+    meetingPhase.value = '介紹決議草案'
     sync()
   }
   function resolveDocVote(passed) {
@@ -626,12 +704,15 @@ export const useConferenceStore = defineStore('conference', () => {
       if (doc.type === 'DR' && passed) doc.stage = 'formal'
     }
     currentVotingDocId.value = null
+    amendSpeakers.value = []; currentAmendSpeaker.value = ''; currentAmendSide.value = ''; amendSpeakerTimer.value = 0
     screenMode.value = 'default'
     meetingPhase.value = '正式辯論'
     sync()
   }
   function cancelDocVote() {
     currentVotingDocId.value = null
+    amendSpeakers.value = []; currentAmendSpeaker.value = ''; currentAmendSide.value = ''; amendSpeakerTimer.value = 0
+    clearAllTimers()
     screenMode.value = 'default'
     meetingPhase.value = '正式辯論'
     sync()
@@ -660,10 +741,12 @@ export const useConferenceStore = defineStore('conference', () => {
     motionQueue, currentVotingMotion, votingRound2, votingTopic, ruleset, voteCounts, passedVote, rollCallVoteData, rollCallVoteStatus,
     stats, documents,
     p5Timer, caucusTotalTimer, modCaucusTopic, modCaucusTotalTimer, modCaucusSpeakerTimer, modCaucusDefaultSpeakTime, modCaucusList, currentModSpeaker, isModCaucusRunning,
+    amendSpeakers, currentAmendSpeaker, currentAmendSide, amendSpeakerTimer, amendDefaultTime, isAmendTimerRunning,
     loadConference, createConference, updateMeta, clearStats, fetchConferenceTitle, joinAsEditor, leaveConference,
     clearAllTimers, toggleGeneralTimer, nextGeneralSpeaker, yieldToDelegate, addToGeneralList,
-    submitMotion, approveMotion, rejectMotion, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
-    uploadDocument, reviewDocument, currentVotingDocId, introduceDocument, resolveDocVote, cancelDocVote,
+    submitMotion, bringMotionToVote, rejectMotion, passMotionVote, failMotionVote, executeMotion, toggleModCaucusTimer, nextModSpeaker, addToModCaucus,
+    uploadDocument, reviewDocument, currentVotingDocId, introduceDocument, introduceAmendment, resolveDocVote, cancelDocVote,
+    addAmendSpeaker, nextAmendSpeaker, toggleAmendTimer, startAmendVote,
     suspendMeeting, resumeMeeting, setSection, startRollCall, markRollCall, endRollCall, changeToLate, returnToDebate,
     startVotingRollCall, recordRollCallVote, nextVotingRound, endVotingRollCall, resetVoting, finishConsensus,
     consensusResult, setConsensusResult, speechNotes, addSpeechNote, deleteSpeechNote,

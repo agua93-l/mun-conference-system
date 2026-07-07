@@ -104,6 +104,60 @@
           <button class="btn btn-ghost btn-block cancel-doc-vote" @click="store.cancelDocVote()">取消，返回辯論（不記錄結果）</button>
         </div>
 
+        <!-- 程序性動議表決控制區 -->
+        <div class="card" v-else-if="store.screenMode === 'motion_voting' && store.currentVotingMotion">
+          <h3>🗳️ 動議表決</h3>
+          <div class="doc-vote-summary">
+            <div class="doc-vote-title">{{ store.currentVotingMotion.type }}</div>
+            <div class="doc-vote-row"><span class="muted-text">動議國</span><span>{{ store.currentVotingMotion.country }}</span></div>
+            <div class="doc-vote-row" v-if="store.currentVotingMotion.details?.topic"><span class="muted-text">主題</span><span>{{ store.currentVotingMotion.details.topic }}</span></div>
+            <div class="doc-vote-row" v-if="store.currentVotingMotion.details?.duration"><span class="muted-text">時長</span><span>{{ store.currentVotingMotion.details.duration }} 分</span></div>
+            <div class="doc-vote-row" v-if="store.currentVotingMotion.details?.totalTime"><span class="muted-text">總時長</span><span>{{ store.currentVotingMotion.details.totalTime }} 分</span></div>
+            <div class="doc-vote-row" v-if="store.currentVotingMotion.details?.docId"><span class="muted-text">目標文件</span><span>{{ docLabel(store.currentVotingMotion.details.docId) }}</span></div>
+          </div>
+          <p class="muted-text form-hint">現場舉牌表決後，由主席記錄結果。</p>
+          <div class="consensus-controls">
+            <button class="btn btn-success btn-block" @click="store.passMotionVote()">✅ 表決通過</button>
+            <button class="btn btn-danger btn-block" @click="store.failMotionVote()">❌ 表決未通過</button>
+          </div>
+        </div>
+
+        <!-- 修正案辯論：特設發言人名單（支持／反對） -->
+        <div class="card" v-else-if="store.screenMode === 'amend_debate'">
+          <h3>🎤 修正案辯論（特設發言名單）</h3>
+          <div class="doc-vote-summary" v-if="votingDoc">
+            <div class="doc-vote-title">[{{ votingDoc.type }} {{ votingDoc.number }}] {{ votingDoc.title }}</div>
+            <div class="doc-vote-row"><span class="muted-text">目標草案</span><span>{{ docLabel(votingDoc.targetDocId) }}</span></div>
+            <div class="doc-vote-row"><span class="muted-text">條款／類型</span><span>{{ votingDoc.clause }} · {{ votingDoc.actionType }}</span></div>
+          </div>
+          <div class="current-speaker-box">
+            <span class="muted-text">當前發言人</span>
+            <strong>{{ store.currentAmendSpeaker || '無' }}<span v-if="store.currentAmendSide" class="badge" :class="store.currentAmendSide === 'for' ? 'badge-success' : 'badge-danger'">{{ store.currentAmendSide === 'for' ? '支持' : '反對' }}</span></strong>
+            <span class="timer-display">{{ formatTime(store.amendSpeakerTimer) }}</span>
+          </div>
+          <div class="input-row">
+            <label class="field-label">預設時長(秒)</label>
+            <input v-model.number="amendTimeInput" @change="store.amendDefaultTime = Math.max(10, amendTimeInput)" type="number" min="10" />
+          </div>
+          <div class="input-row">
+            <select v-model="amendSelCountry"><option value="">選擇國家</option><option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option></select>
+            <button class="btn btn-success btn-sm" @click="store.addAmendSpeaker(amendSelCountry, 'for'); amendSelCountry=''">＋支持</button>
+            <button class="btn btn-danger btn-sm" @click="store.addAmendSpeaker(amendSelCountry, 'against'); amendSelCountry=''">＋反對</button>
+          </div>
+          <div class="list-scroll">
+            <div v-for="(spk, i) in store.amendSpeakers" :key="i" class="list-item">
+              <span>{{ spk.country }}</span>
+              <span class="badge" :class="spk.side === 'for' ? 'badge-success' : 'badge-danger'">{{ spk.side === 'for' ? '支持' : '反對' }}</span>
+            </div>
+            <div v-if="store.amendSpeakers.length === 0" class="empty">尚無登記發言（支持/反對各建議 2 位）</div>
+          </div>
+          <div class="timer-control-row">
+            <button class="btn btn-secondary" @click="store.nextAmendSpeaker">➡️ 下一位</button>
+            <button class="btn" :class="store.isAmendTimerRunning ? 'btn-primary' : 'btn-secondary'" @click="store.toggleAmendTimer">{{ store.isAmendTimerRunning ? '⏸️ 暫停' : '▶️ 開始' }}</button>
+            <button class="btn btn-warning" @click="store.startAmendVote()">🗳️ 結束辯論，進入表決</button>
+          </div>
+        </div>
+
         <!-- 常設發言人名單 -->
         <div class="card" v-else>
           <h3>🎤 常設發言人名單</h3>
@@ -141,7 +195,7 @@
         </div>
 
         <!-- 點名系統 -->
-        <div class="card roll-call-control" v-if="!['voting_roll_call', 'voting_consensus', 'doc_voting'].includes(store.screenMode)">
+        <div class="card roll-call-control" v-if="!['voting_roll_call', 'voting_consensus', 'doc_voting', 'motion_voting', 'amend_debate'].includes(store.screenMode)">
           <h3>📋 點名系統</h3>
           <div v-if="!store.isRollCallActive" class="rc-trigger">
             <button class="btn btn-primary btn-block" @click="store.startRollCall()">📢 開始點名 (同步至代表端)</button>
@@ -187,21 +241,32 @@
             <template v-if="mType === '唱名表決' || mType === '共識決'">
               <input v-model="mDetails.topic" placeholder="表決議題（如：決議草案 DR 1.1）" />
             </template>
-            <button class="btn btn-primary btn-block" :disabled="!mType || !mCountry" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
+            <template v-if="mType === '介紹決議草案'">
+              <select v-model="mDetails.docId">
+                <option value="">選擇要介紹的潛在決議草案</option>
+                <option v-for="d in introDrDocs" :key="d.id" :value="d.id">[DR {{ d.number }}] {{ d.title }}</option>
+              </select>
+            </template>
+            <template v-if="mType === '介紹修正案'">
+              <select v-model="mDetails.docId">
+                <option value="">選擇要介紹的修正案</option>
+                <option v-for="d in introAmendDocs" :key="d.id" :value="d.id">[A {{ d.number }}] {{ d.title }}</option>
+              </select>
+            </template>
+            <button class="btn btn-primary btn-block" :disabled="!canSubmitMotion" @click="store.submitMotion(mType, mCountry, mDetails)">📥 提交動議</button>
           </div>
 
           <div class="queue-list">
             <div v-for="(m, i) in store.motionQueue" :key="m.id" class="queue-item">
-              <span class="badge badge-warning">P{{ m.priority }}</span>
               <span>{{ m.type }} - {{ m.country }}</span>
               <div class="row-actions">
-                <button class="btn btn-success btn-sm" @click="store.approveMotion(i)">✓ 通過</button>
-                <button class="btn btn-danger btn-sm" @click="store.rejectMotion()">✗ 駁回</button>
+                <button class="btn btn-success btn-sm" @click="store.bringMotionToVote(i)">🗳️ 受理表決</button>
+                <button class="btn btn-danger btn-sm" @click="store.rejectMotion(i)">✗ 駁回</button>
               </div>
             </div>
             <div v-if="store.motionQueue.length === 0" class="empty">佇列為空</div>
           </div>
-          <button class="btn btn-warning btn-block" :disabled="!store.currentVotingMotion" @click="store.executeMotion">📢 執行當前表決動議</button>
+          <p class="muted-text form-hint">按「受理表決」把動議放上投影供現場舉牌表決，再於左側記錄通過／未通過。</p>
         </div>
 
         <div class="card">
@@ -339,6 +404,7 @@ const store = useConferenceStore()
 const confId = route.params.id
 const selCountry = ref(''); const yieldTarget = ref(''); const mType = ref(''); const mCountry = ref(''); const mDetails = ref({})
 const modSelCountry = ref(''); const timeLimitInput = ref(60); const docType = ref('WD'); const docNumber = ref(''); const docTitle = ref('')
+const amendSelCountry = ref(''); const amendTimeInput = ref(60)
 const currentTime = ref('')
 const showVoteModal = ref(false); const votingTargetCountry = ref('')
 const docFile = ref(null); const docFileInput = ref(null); const docUploading = ref(false)
@@ -353,6 +419,14 @@ const sortedMiniStats = computed(() => Object.entries(store.stats)
   .sort((a, b) => b.speeches - a.speeches))
 const targetableDocs = computed(() => store.documents.filter(d => d.type === 'DR' && d.status === 'approved'))
 const votingDoc = computed(() => store.documents.find(d => d.id === store.currentVotingDocId) || null)
+// 可介紹的文件：潛在決議草案 / 尚未表決通過的修正案（皆須已審核）
+const introDrDocs = computed(() => store.documents.filter(d => d.type === 'DR' && d.status === 'approved' && d.stage !== 'formal'))
+const introAmendDocs = computed(() => store.documents.filter(d => d.type === 'A' && d.status === 'approved' && d.voteStatus !== 'passed'))
+const canSubmitMotion = computed(() => {
+  if (!mType.value || !mCountry.value) return false
+  if (mType.value === '介紹決議草案' || mType.value === '介紹修正案') return !!mDetails.value.docId
+  return true
+})
 const canSubmitDoc = computed(() => {
   if (!docType.value || !docNumber.value || !docTitle.value) return false
   if (docType.value === 'A') return !!(aTarget.value && aClause.value.trim() && aChange.value.trim())
