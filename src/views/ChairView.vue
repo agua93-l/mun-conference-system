@@ -308,6 +308,7 @@
             <button class="btn btn-primary" :disabled="!canSubmitDoc || docUploading" @click="submitDocUpload">{{ docUploading ? '上傳中...' : '📤 上傳並送審' }}</button>
           </div>
           <p v-if="docType === 'A'" class="muted-text form-hint">修正案的檔案為選填，投影與文件庫會直接顯示上面填的結構化內容。</p>
+          <p class="muted-text form-hint">檔案大小上限 20MB，掃描 PDF 過大時請先壓縮。</p>
           <div class="doc-review-list">
             <div v-for="(doc, i) in store.documents" :key="doc.id ?? (doc.number + doc.type + i)" class="doc-review-item" :class="doc.status">
               <div class="doc-review-main">
