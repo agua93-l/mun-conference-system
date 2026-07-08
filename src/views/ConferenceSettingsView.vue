@@ -168,7 +168,11 @@ async function handleSave() {
 
 onMounted(() => {
   store.loadConference(confId)
-  const stop = watch(() => store.loaded, (v) => { if (v) { syncFromStore(); stop() } }, { immediate: true })
+  // 若會議已經載入過（例如從主席控制台切過來），store.loaded 這時已經是 true，
+  // 不能用 { immediate: true } 立刻觸發回呼——那樣會在 stop 賦值完成前就呼叫它，導致 unmount 時噴出未處理例外，
+  // 進而讓 router-view 卡在切換畫面途中。改成先同步檢查一次，只有還沒載入時才註冊 watcher 等它變成 true。
+  if (store.loaded) { syncFromStore(); return }
+  const stop = watch(() => store.loaded, (v) => { if (v) { syncFromStore(); stop() } })
 })
 </script>
 
