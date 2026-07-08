@@ -140,14 +140,18 @@
             <input v-model.number="amendTimeInput" @change="store.amendDefaultTime = Math.max(10, amendTimeInput)" type="number" min="10" />
           </div>
           <div class="input-row">
-            <select v-model="amendSelCountry"><option value="">選擇國家</option><option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option></select>
-            <button class="btn btn-success btn-sm" @click="store.addAmendSpeaker(amendSelCountry, 'for'); amendSelCountry=''">＋支持</button>
-            <button class="btn btn-danger btn-sm" @click="store.addAmendSpeaker(amendSelCountry, 'against'); amendSelCountry=''">＋反對</button>
+            <select v-model="amendSelCountry">
+              <option value="">選擇國家（{{ amendAvailableDelegates.length }} 位尚未登記）</option>
+              <option v-for="d in amendAvailableDelegates" :key="d.name" :value="d.name">{{ d.name }}</option>
+            </select>
+            <button class="btn btn-success btn-sm" :disabled="!amendSelCountry" @click="store.addAmendSpeaker(amendSelCountry, 'for'); amendSelCountry=''">＋支持</button>
+            <button class="btn btn-danger btn-sm" :disabled="!amendSelCountry" @click="store.addAmendSpeaker(amendSelCountry, 'against'); amendSelCountry=''">＋反對</button>
           </div>
           <div class="list-scroll">
             <div v-for="(spk, i) in store.amendSpeakers" :key="i" class="list-item">
               <span>{{ spk.country }}</span>
               <span class="badge" :class="spk.side === 'for' ? 'badge-success' : 'badge-danger'">{{ spk.side === 'for' ? '支持' : '反對' }}</span>
+              <button class="btn btn-ghost btn-sm remove-btn" title="移除" @click="store.removeAmendSpeaker(spk.country)">✕</button>
             </div>
             <div v-if="store.amendSpeakers.length === 0" class="empty">尚無登記發言（支持/反對各建議 2 位）</div>
           </div>
@@ -172,13 +176,16 @@
           </div>
           <div class="input-row">
             <select v-model="selCountry">
-              <option value="">選擇國家</option>
-              <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
+              <option value="">選擇國家（{{ generalAvailableDelegates.length }} 位尚未登記）</option>
+              <option v-for="d in generalAvailableDelegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
-            <button class="btn btn-secondary" @click="store.addToGeneralList(selCountry); selCountry=''">加入名單</button>
+            <button class="btn btn-secondary" :disabled="!selCountry" @click="store.addToGeneralList(selCountry); selCountry=''">加入名單</button>
           </div>
           <div class="list-scroll">
-            <div v-for="(spk, i) in store.generalList" :key="i" class="list-item"><span>{{ spk.country }}</span></div>
+            <div v-for="(spk, i) in store.generalList" :key="i" class="list-item">
+              <span>{{ spk.country }}</span>
+              <button class="btn btn-ghost btn-sm remove-btn" title="移除" @click="store.removeFromGeneralList(spk.country)">✕</button>
+            </div>
             <div v-if="store.generalList.length === 0" class="empty">無登記代表</div>
           </div>
           <div class="timer-control-row">
@@ -359,10 +366,19 @@
           <h3>🎤 有主持核心磋商控制</h3>
           <div class="mod-info-badge">每位發言人時長：<strong>{{ store.modCaucusDefaultSpeakTime || 60 }}秒</strong></div>
           <div class="input-row">
-            <select v-model="modSelCountry"><option value="">選擇國家</option><option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option></select>
-            <button class="btn btn-secondary" @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
+            <select v-model="modSelCountry">
+              <option value="">選擇國家（{{ modAvailableDelegates.length }} 位尚未登記）</option>
+              <option v-for="d in modAvailableDelegates" :key="d.name" :value="d.name">{{ d.name }}</option>
+            </select>
+            <button class="btn btn-secondary" :disabled="!modSelCountry" @click="store.addToModCaucus(modSelCountry); modSelCountry=''">加入特設名單</button>
           </div>
-          <div class="list-scroll"><div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item"><span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span></div><div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div></div>
+          <div class="list-scroll">
+            <div v-for="(spk, i) in store.modCaucusList" :key="i" class="list-item mod-item">
+              <span>{{ i + 1 }}. {{ spk.country }} ({{ spk.time }}s)</span>
+              <button class="btn btn-ghost btn-sm remove-btn" title="移除" @click="store.removeFromModCaucus(spk.country)">✕</button>
+            </div>
+            <div v-if="store.modCaucusList.length === 0" class="empty">暫無特設代表</div>
+          </div>
           <div class="timer-control-row">
             <button class="btn btn-secondary" @click="store.nextModSpeaker">➡️ 下一位</button>
             <button class="btn" :class="store.isModCaucusRunning ? 'btn-primary' : 'btn-secondary'" @click="store.toggleModCaucusTimer">{{ store.isModCaucusRunning ? '⏸️ 暫停' : '▶️ 開始' }}</button>
@@ -427,6 +443,10 @@ const canSubmitMotion = computed(() => {
   if (mType.value === '介紹決議草案' || mType.value === '介紹修正案') return !!mDetails.value.docId
   return true
 })
+// 下拉選單只列出尚未加入名單的國家，選過的自然消失，不用在一長串裡找誰已經登記過
+const generalAvailableDelegates = computed(() => store.delegates.filter(d => !store.generalList.some(s => s.country === d.name)))
+const modAvailableDelegates = computed(() => store.delegates.filter(d => !store.modCaucusList.some(s => s.country === d.name)))
+const amendAvailableDelegates = computed(() => store.delegates.filter(d => !store.amendSpeakers.some(s => s.country === d.name)))
 const canSubmitDoc = computed(() => {
   if (!docType.value || !docNumber.value || !docTitle.value) return false
   if (docType.value === 'A') return !!(aTarget.value && aClause.value.trim() && aChange.value.trim())
@@ -521,8 +541,11 @@ h3 { font-size: 1rem; margin: 0 0 14px 0; padding-bottom: 10px; border-bottom: 1
 .input-row input, .input-row select { flex: 1; }
 .field-label { font-size: 0.85rem; color: var(--color-text-secondary); white-space: nowrap; }
 .list-scroll { max-height: 150px; overflow-y: auto; margin-bottom: 10px; }
-.list-item { padding: 8px 10px; background: var(--color-bg); margin-bottom: 5px; border-radius: var(--radius-sm); display: flex; justify-content: space-between; }
+.list-item { padding: 8px 10px; background: var(--color-bg); margin-bottom: 5px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; }
+.list-item > span:first-child { flex: 1; }
 .mod-item { background: var(--color-accent-soft); }
+.remove-btn { padding: 2px 8px; color: var(--color-text-muted); line-height: 1; }
+.remove-btn:hover { color: var(--color-danger); }
 .empty { text-align: center; color: var(--color-text-muted); padding: 14px; font-size: 0.9rem; }
 .timer-control-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .yield-select { flex: 1; }
