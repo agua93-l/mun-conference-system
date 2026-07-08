@@ -192,7 +192,7 @@
             <button class="btn btn-secondary" @click="store.nextGeneralSpeaker">➡️ 下一位</button>
             <select v-model="yieldTarget" class="yield-select" :disabled="!store.currentGeneralSpeaker || store.generalSpeakerTimer <= 0">
               <option value="">🔄 讓渡予...</option>
-              <option v-for="d in store.delegates" :key="d.name" :value="d.name">{{ d.name }}</option>
+              <option v-for="d in yieldableDelegates" :key="d.name" :value="d.name">{{ d.name }}</option>
             </select>
             <button class="btn btn-warning" :disabled="!yieldTarget" @click="store.yieldToDelegate(yieldTarget); yieldTarget=''">讓渡</button>
             <button class="btn" :class="store.isGeneralTimerRunning ? 'btn-primary' : 'btn-secondary'" @click="store.toggleGeneralTimer">
@@ -445,6 +445,8 @@ const canSubmitMotion = computed(() => {
 })
 // 下拉選單只列出尚未加入名單的國家，選過的自然消失，不用在一長串裡找誰已經登記過
 const generalAvailableDelegates = computed(() => store.delegates.filter(d => !store.generalList.some(s => s.country === d.name)))
+// 讓渡對象不能是自己
+const yieldableDelegates = computed(() => store.delegates.filter(d => d.name !== store.currentGeneralSpeaker))
 const modAvailableDelegates = computed(() => store.delegates.filter(d => !store.modCaucusList.some(s => s.country === d.name)))
 const amendAvailableDelegates = computed(() => store.delegates.filter(d => !store.amendSpeakers.some(s => s.country === d.name)))
 const canSubmitDoc = computed(() => {
