@@ -709,9 +709,14 @@ export const useConferenceStore = defineStore('conference', () => {
     }
   }
 
+  const MAX_UPLOAD_BYTES = 20 * 1024 * 1024 // Storage 安全規則只允許小於 20MB 的檔案，這裡先擋掉避免白跑一趟上傳才失敗
   async function uploadDocument(type, num, title, file, extra = {}) {
     if (!type || !num || !title) return
     if (!currentConferenceId) { alert('⚠️ 尚未載入會議，請稍後再試'); return }
+    if (file && file.size > MAX_UPLOAD_BYTES) {
+      alert(`⚠️ 檔案大小 ${(file.size / 1024 / 1024).toFixed(1)}MB 超過上限 20MB，請壓縮後再上傳（例如降低 PDF 掃描解析度）`)
+      return
+    }
     const now = Date.now()
     const doc = { id: now, type, number: num, title, status: 'pending', uploadedAt: now }
     if (file) {
@@ -724,7 +729,8 @@ export const useConferenceStore = defineStore('conference', () => {
         doc.fileURL = await fb.storageMethods.getDownloadURL(fileRef)
         doc.path = path
       } catch (e) {
-        alert('❌ 上傳失敗，請重試')
+        if (e.code === 'storage/unauthorized') alert('❌ 上傳失敗：檔案可能超過大小上限，或沒有上傳權限')
+        else alert('❌ 上傳失敗，請重試')
         return
       }
     }
