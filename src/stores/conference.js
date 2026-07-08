@@ -509,12 +509,14 @@ export const useConferenceStore = defineStore('conference', () => {
   }
 
   function yieldToDelegate(target) {
-    if (!target || !currentGeneralSpeaker.value) return
+    if (!target || !currentGeneralSpeaker.value || target === currentGeneralSpeaker.value) return
     const rem = generalSpeakerTimer.value
+    // 受讓國若剛好也排在候補名單裡，保留其位置：輪到時仍可再拿到一次完整的發言時間
     const newList = generalList.value.filter(s => s.country !== currentGeneralSpeaker.value)
     generalList.value = newList
     currentGeneralSpeaker.value = target
     generalSpeakerTimer.value = rem
+    ensureStatsCountry(target); stats[target].speeches++
     if (rem > 0) {
       isGeneralTimerRunning.value = true
       generalSpeakerEndAt.value = Date.now() + rem * 1000
@@ -783,7 +785,17 @@ export const useConferenceStore = defineStore('conference', () => {
   function deleteSpeechNote(id) { speechNotes.value = speechNotes.value.filter(n => n.id !== id); sync() }
   function suspendMeeting() { clearAllTimers(); screenMode.value='suspended'; meetingPhase.value='會議暫停'; sync() }
   function resumeMeeting() { screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
-  function returnToDebate() { modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0; isModCaucusRunning.value=false; consensusResult.value=null; votingTopic.value=''; screenMode.value='default'; meetingPhase.value='正式辯論'; sync() }
+  // 「返回辯論」是磋商／有主持核心磋商／P5閉門協商唯一的中止入口：這幾個模式都有背景計時器在跑，
+  // 沒先 clearAllTimers() 的話，endAt 倒數會在背景繼續算，算到 0 時把 screenMode 強制拉回 default——
+  // 如果主席這時已經手動切到別的畫面（例如開始唱名表決），會被這個殭屍計時器打斷。
+  function returnToDebate() {
+    clearAllTimers()
+    modCaucusList.value=[]; currentModSpeaker.value=''; modCaucusSpeakerTimer.value=0; modCaucusTotalTimer.value=0
+    caucusTotalTimer.value=0; p5Timer.value=0
+    consensusResult.value=null; votingTopic.value=''
+    amendSpeakers.value=[]; currentAmendSpeaker.value=''; currentAmendSide.value=''; amendSpeakerTimer.value=0
+    screenMode.value='default'; meetingPhase.value='正式辯論'; sync()
+  }
   function saveProgress() { sync() }
   function resetMeeting() {
     if (!confirm('⚠️ 確定要重置整個會議嗎？這將清除所有點名、投票、動議與統計紀錄，且無法復原！')) return
